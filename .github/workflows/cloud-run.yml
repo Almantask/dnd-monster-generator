@@ -55,27 +55,34 @@ jobs:
         run: |
           gcloud config set project "$PROJECT"
           
-          # Construct comma-separated environment variables dynamically
-          VARS=()
-          [ -n "$OPENROUTER_API_KEY" ] && VARS+=("OPENROUTER_API_KEY=${OPENROUTER_API_KEY}")
-          [ -n "$GEMINI_API_KEY" ] && VARS+=("GEMINI_API_KEY=${GEMINI_API_KEY}")
-          [ -n "$POLLINATIONS_API_KEY" ] && VARS+=("POLLINATIONS_API_KEY=${POLLINATIONS_API_KEY}")
-          [ -n "$HF_TOKEN" ] && VARS+=("HF_TOKEN=${HF_TOKEN}")
-          [ -n "$GENERATION_PASSPHRASE" ] && VARS+=("GENERATION_PASSPHRASE=${GENERATION_PASSPHRASE}")
-          [ -n "$CORS_ORIGIN" ] && VARS+=("CORS_ORIGIN=${CORS_ORIGIN}")
+          ENV_VARS=""
+          for var in "OPENROUTER_API_KEY=$OPENROUTER_API_KEY" "GEMINI_API_KEY=$GEMINI_API_KEY" "POLLINATIONS_API_KEY=$POLLINATIONS_API_KEY" "HF_TOKEN=$HF_TOKEN" "GENERATION_PASSPHRASE=$GENERATION_PASSPHRASE" "CORS_ORIGIN=$CORS_ORIGIN"; do
+            val="${var#*=}"
+            if [ -n "$val" ]; then
+              if [ -z "$ENV_VARS" ]; then
+                ENV_VARS="$var"
+              else
+                ENV_VARS="$ENV_VARS,$var"
+              fi
+            fi
+          done
           
-          ENV_FLAG=""
-          if [ ${#VARS[@]} -gt 0 ]; then
-            IFS=','
-            ENV_FLAG="--set-env-vars ${VARS[*]}"
+          if [ -n "$ENV_VARS" ]; then
+            gcloud run deploy bestiary-api \
+              --source . \
+              --region us-central1 \
+              --allow-unauthenticated \
+              --memory 512Mi \
+              --timeout 120 \
+              --min-instances 0 \
+              --set-env-vars "$ENV_VARS"
+          else
+            gcloud run deploy bestiary-api \
+              --source . \
+              --region us-central1 \
+              --allow-unauthenticated \
+              --memory 512Mi \
+              --timeout 120 \
+              --min-instances 0
           fi
-          
-          gcloud run deploy bestiary-api \
-            --source . \
-            --region us-central1 \
-            --allow-unauthenticated \
-            --memory 512Mi \
-            --timeout 120 \
-            --min-instances 0 \
-            $ENV_FLAG
 
