@@ -20,8 +20,8 @@ export function ConjureProgressModal({
   }, [])
 
   const currentHint = getHintForSeconds(seconds)
-  // Progress fills up to 96% over 20s, holding until response arrives
-  const progressPercent = Math.min(96, Math.round((seconds / 20) * 100))
+  // Progress fills up to 96% over 60s, holding until response arrives
+  const progressPercent = Math.min(96, Math.round((seconds / 60) * 100))
 
   return (
     <div
@@ -65,11 +65,11 @@ export function ConjureProgressModal({
           </div>
         </div>
 
-        {/* 20s Progress Bar */}
+        {/* 60s Progress Bar */}
         <div className="space-y-1.5 mt-4">
           <div className="flex justify-between text-xs font-display text-oxblood uppercase">
             <span>Arcane Weaver</span>
-            <span>{seconds}s / 20s</span>
+            <span>{seconds}s / 60s</span>
           </div>
           <div className="h-3 w-full overflow-hidden rounded-full border border-oxblood/40 bg-parchment p-0.5">
             <div

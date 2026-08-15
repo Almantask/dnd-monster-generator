@@ -13,17 +13,17 @@ describe('ConjureProgressModal & Hints', () => {
     vi.useRealTimers()
   })
 
-  it('correctly maps seconds across 20s to appropriate hints and ends with almost there', () => {
+  it('correctly maps seconds across 60s to appropriate hints and ends with almost there', () => {
     expect(getHintForSeconds(0)).toBe(CONJURE_HINTS[0]!.text)
-    expect(getHintForSeconds(2)).toBe('Consulting the ancient draconic bestiary…')
-    expect(getHintForSeconds(5)).toBe('Calculating challenge rating, hit dice & XP budget…')
-    expect(getHintForSeconds(8)).toBe('Sharpening claws, balancing save DCs, and penning traits…')
-    expect(getHintForSeconds(11)).toBe('Sneaking past the dungeon master’s screen…')
-    expect(getHintForSeconds(14)).toBe('Grinding rare minerals & brewing enchanted parchment ink…')
-    expect(getHintForSeconds(17)).toBe('Illuminating the creature portrait with arcane pigment…')
-    expect(getHintForSeconds(18)).toBe('Almost there…')
-    expect(getHintForSeconds(20)).toBe('Almost there…')
-    expect(getHintForSeconds(30)).toBe('Almost there…')
+    expect(getHintForSeconds(5)).toBe('Consulting the ancient draconic bestiary…')
+    expect(getHintForSeconds(12)).toBe('Calculating challenge rating, hit dice & XP budget…')
+    expect(getHintForSeconds(22)).toBe('Sharpening claws, balancing save DCs, and penning traits…')
+    expect(getHintForSeconds(32)).toBe('Sneaking past the dungeon master’s screen…')
+    expect(getHintForSeconds(42)).toBe('Grinding rare minerals & brewing enchanted parchment ink…')
+    expect(getHintForSeconds(52)).toBe('Illuminating the creature portrait with arcane pigment…')
+    expect(getHintForSeconds(56)).toBe('Almost there…')
+    expect(getHintForSeconds(60)).toBe('Almost there…')
+    expect(getHintForSeconds(80)).toBe('Almost there…')
   })
 
   it('renders Kobold running animation and progressive timer', () => {
@@ -31,21 +31,21 @@ describe('ConjureProgressModal & Hints', () => {
 
     expect(screen.getByText('Inscribing Statblock')).toBeTruthy()
     expect(screen.getByText(/Summoning "Goblin Shaman"/)).toBeTruthy()
-    expect(screen.getByText('0s / 20s')).toBeTruthy()
+    expect(screen.getByText('0s / 60s')).toBeTruthy()
     expect(screen.getByText('“Consulting the ancient draconic bestiary…”')).toBeTruthy()
 
-    // Advance by 10 seconds
+    // Advance by 30 seconds
     act(() => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(30000)
     })
-    expect(screen.getByText('10s / 20s')).toBeTruthy()
+    expect(screen.getByText('30s / 60s')).toBeTruthy()
     expect(screen.getByText('“Sneaking past the dungeon master’s screen…”')).toBeTruthy()
 
-    // Advance to 19 seconds
+    // Advance to 58 seconds
     act(() => {
-      vi.advanceTimersByTime(9000)
+      vi.advanceTimersByTime(28000)
     })
-    expect(screen.getByText('19s / 20s')).toBeTruthy()
+    expect(screen.getByText('58s / 60s')).toBeTruthy()
     expect(screen.getByText('“Almost there…”')).toBeTruthy()
   })
 })
