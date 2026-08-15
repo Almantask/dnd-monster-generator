@@ -25,6 +25,7 @@ jobs:
         env:
           PROJECT: ${{ secrets.GCP_PROJECT_ID }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           GENERATION_PASSPHRASE: ${{ secrets.GENERATION_PASSPHRASE }}
@@ -32,6 +33,7 @@ jobs:
         run: |
           gcloud config set project "$PROJECT"
           ENV_VARS="OPENROUTER_API_KEY=${OPENROUTER_API_KEY}"
+          if [ -n "$GEMINI_API_KEY" ]; then ENV_VARS="$ENV_VARS,GEMINI_API_KEY=${GEMINI_API_KEY}"; fi
           if [ -n "$POLLINATIONS_API_KEY" ]; then ENV_VARS="$ENV_VARS,POLLINATIONS_API_KEY=${POLLINATIONS_API_KEY}"; fi
           if [ -n "$HF_TOKEN" ]; then ENV_VARS="$ENV_VARS,HF_TOKEN=${HF_TOKEN}"; fi
           if [ -n "$GENERATION_PASSPHRASE" ]; then ENV_VARS="$ENV_VARS,GENERATION_PASSPHRASE=${GENERATION_PASSPHRASE}"; fi

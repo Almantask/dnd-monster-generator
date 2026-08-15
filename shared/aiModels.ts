@@ -7,4 +7,4 @@ export const STATBLOCK_MODELS = [
   'openrouter/free',
 ] as const
 
-export const IMAGE_PROVIDERS = ['pollinations', 'huggingface'] as const
+export const IMAGE_PROVIDERS = ['gemini', 'pollinations', 'huggingface'] as const

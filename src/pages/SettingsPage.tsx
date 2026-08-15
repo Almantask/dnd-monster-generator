@@ -6,6 +6,7 @@ export function SettingsPage() {
   const [apiUrl, setApiUrlState] = useState(getApiUrl())
   const [passphrase, setPassphraseState] = useState(getPassphrase())
   const [status, setStatus] = useState<{
+    gemini: boolean
     openrouter: boolean
     pollinations: boolean
     huggingface: boolean
@@ -56,6 +57,7 @@ export function SettingsPage() {
       {status ? (
         <ul className="text-sm">
           <li>OpenRouter: {status.openrouter ? 'configured' : 'missing'}</li>
+          <li>Gemini Flash Image: {status.gemini ? 'configured (~500/day)' : 'not set (Pollinations fallback)'}</li>
           <li>Pollinations: {status.pollinations ? 'key present' : 'anonymous flux (ok)'}</li>
           <li>Hugging Face: {status.huggingface ? 'configured' : 'not set'}</li>
           <li>Passphrase required: {status.passphraseRequired ? 'yes' : 'no'}</li>

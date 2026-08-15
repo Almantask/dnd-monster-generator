@@ -10,7 +10,7 @@ Needs Node 22+.
 npm install
 ```
 
-Copy `.env.example` to `.env` and set at least `OPENROUTER_API_KEY` (free OpenRouter account). Then run the API and the UI:
+Copy `.env.example` to `.env` and set at least `OPENROUTER_API_KEY` (free OpenRouter account). For portraits, set `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey) (Gemini 2.5 Flash Image, about 500 free requests/day, no credit card). Pollinations is the no-key fallback. `.env` is gitignored; the API loads it on startup without overriding variables already set in the shell or Cloud Run. Then run the API and the UI:
 
 ```bash
 npm run dev:server
@@ -27,28 +27,12 @@ npm run lint
 
 ## Deploy
 
-### 1. Cloud Run API
-
-1. Create a GCP project and attach your Google Developer Program credits.
-2. Enable Cloud Run and Cloud Build.
-3. Create a service account that can deploy Cloud Run; put its JSON key in the GitHub secret `GCP_SA_KEY`.
-4. GitHub secrets: `GCP_PROJECT_ID`, `OPENROUTER_API_KEY`. Optional: `POLLINATIONS_API_KEY`, `HF_TOKEN`, `GENERATION_PASSPHRASE`.
-5. GitHub variable `CORS_ORIGIN` = your Pages origin, e.g. `https://YOURUSER.github.io`.
-6. Push to `main` (or run the **Cloud Run** workflow). Copy the service URL.
-
-Set a **$10 budget alert** on the billing account so a misconfigured paid API cannot overspend. This app only calls free OpenRouter chat models and free image APIs.
-
-### 2. GitHub Pages
-
-1. Repo **Settings → Pages → Source: GitHub Actions**.
-2. Secret `VITE_API_URL` = the Cloud Run URL with no trailing slash.
-3. Push to `main`. The site is at `https://YOURUSER.github.io/dnd-monster-generator/`.
-4. If you skip `VITE_API_URL` at build time, paste the Cloud Run URL in the in-app **Settings** page.
+See [host_plan.md](host_plan.md) for Cloud credits, the deployer service account, GitHub secrets, Cloud Run, and GitHub Pages.
 
 ## How generation works
 
 - **Statblocks:** OpenRouter `:free` models only (`deepseek/deepseek-v4-flash:free`, `tencent/hy3:free`, then other free fallbacks).
-- **Images:** Pollinations FLUX (always free), then Hugging Face `FLUX.1-schnell` if `HF_TOKEN` is set.
+- **Images:** Gemini 2.5 Flash Image first (AI Studio key, ~500/day free). If that fails or the key is missing, Pollinations FLUX (no key). Hugging Face `FLUX.1-schnell` last if `HF_TOKEN` is set.
 - Monsters and images are stored in **IndexedDB** on this device. Export JSON (or a zip) to back them up.
 
 Click ability scores, `+N to hit`, damage dice, hit dice, or recharge text to roll. Results collect in the dice tray at the bottom of the page.

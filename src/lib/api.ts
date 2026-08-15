@@ -46,6 +46,7 @@ export async function generateImage(input: {
 }
 
 export async function fetchStatus(): Promise<{
+  gemini: boolean
   openrouter: boolean
   pollinations: boolean
   huggingface: boolean
@@ -55,6 +56,7 @@ export async function fetchStatus(): Promise<{
   const res = await fetch(`${base}/api/status`)
   if (!res.ok) {
     return {
+      gemini: false,
       openrouter: false,
       pollinations: false,
       huggingface: false,
@@ -62,6 +64,7 @@ export async function fetchStatus(): Promise<{
     }
   }
   return res.json() as Promise<{
+    gemini: boolean
     openrouter: boolean
     pollinations: boolean
     huggingface: boolean

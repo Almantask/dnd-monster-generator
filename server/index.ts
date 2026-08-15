@@ -1,3 +1,4 @@
+import './env.ts'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
@@ -22,6 +23,7 @@ app.get('/api/health', (c) => c.json({ ok: true }))
 
 app.get('/api/status', (c) =>
   c.json({
+    gemini: Boolean(process.env.GEMINI_API_KEY),
     openrouter: Boolean(process.env.OPENROUTER_API_KEY),
     pollinations: Boolean(process.env.POLLINATIONS_API_KEY),
     huggingface: Boolean(process.env.HF_TOKEN),
