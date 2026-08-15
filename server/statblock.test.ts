@@ -89,7 +89,7 @@ describe('generateStatblock', () => {
 
     expect(result.provider).toBe('gemini')
     expect(result.monster.name).toBe('Cinder Drake')
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-2.5-flash')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.5-flash')
   })
 
   it('falls back to OpenRouter when GEMINI_API_KEY is not set but OPENROUTER_API_KEY is', async () => {

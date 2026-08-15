@@ -1,4 +1,7 @@
 export const GEMINI_STATBLOCK_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.7-flash',
   'gemini-2.5-flash',
   'gemini-2.0-flash',
 ] as const
@@ -18,6 +21,8 @@ export const OPENROUTER_STATBLOCK_MODELS = [
 export const STATBLOCK_MODELS = OPENROUTER_STATBLOCK_MODELS
 
 export const IMAGEN_MODELS = [
+  'imagen-4.0-generate-001',
+  'imagen-4.0-fast-generate-001',
   'imagen-4.0-generate-preview',
   'imagen-3.0-generate-002',
   'imagen-3.0-generate-001',
