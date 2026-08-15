@@ -1,0 +1,46 @@
+name: Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - server/**
+      - shared/**
+      - Dockerfile
+      - package.json
+      - package-lock.json
+      - .github/workflows/cloud-run.yml
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy to Cloud Run
+        env:
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GENERATION_PASSPHRASE: ${{ secrets.GENERATION_PASSPHRASE }}
+          CORS_ORIGIN: ${{ vars.CORS_ORIGIN }}
+        run: |
+          gcloud config set project "$PROJECT"
+          ENV_VARS="OPENROUTER_API_KEY=${OPENROUTER_API_KEY}"
+          if [ -n "$POLLINATIONS_API_KEY" ]; then ENV_VARS="$ENV_VARS,POLLINATIONS_API_KEY=${POLLINATIONS_API_KEY}"; fi
+          if [ -n "$HF_TOKEN" ]; then ENV_VARS="$ENV_VARS,HF_TOKEN=${HF_TOKEN}"; fi
+          if [ -n "$GENERATION_PASSPHRASE" ]; then ENV_VARS="$ENV_VARS,GENERATION_PASSPHRASE=${GENERATION_PASSPHRASE}"; fi
+          if [ -n "$CORS_ORIGIN" ]; then ENV_VARS="$ENV_VARS,CORS_ORIGIN=${CORS_ORIGIN}"; fi
+          gcloud run deploy bestiary-api \
+            --source . \
+            --region us-central1 \
+            --allow-unauthenticated \
+            --memory 512Mi \
+            --timeout 120 \
+            --min-instances 0 \
+            --set-env-vars "$ENV_VARS"

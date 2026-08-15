@@ -1,0 +1,296 @@
+import { useEffect, useState, type ReactNode } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import type { Monster, NamedFeature } from '@shared/monsterSchema.ts'
+import {
+  ARCHETYPES,
+  GROUPS,
+  HABITATS,
+  LOCOMOTIONS,
+  PERSONALITIES,
+  SIZES,
+  type Locomotion,
+} from '@shared/taxonomies.ts'
+import { createBlankMonster } from '@shared/importAdapter.ts'
+import { getImageUrl, getMonster, saveImage, saveMonster } from '@/lib/storage.ts'
+
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <label className="block">
+      <span className="font-display text-xs uppercase tracking-wide text-oxblood">{label}</span>
+      <div className="mt-1">{children}</div>
+    </label>
+  )
+}
+
+const inputClass = 'w-full rounded border border-oxblood/40 bg-parchment px-3 py-2'
+
+function FeatureEditor({
+  title,
+  items,
+  onChange,
+}: {
+  title: string
+  items: NamedFeature[]
+  onChange: (items: NamedFeature[]) => void
+}) {
+  return (
+    <fieldset className="space-y-2 rounded border border-oxblood/20 p-3">
+      <legend className="font-display text-sm uppercase text-oxblood">{title}</legend>
+      {items.map((item, index) => (
+        <div key={index} className="grid gap-2 md:grid-cols-[12rem_1fr_auto]">
+          <input
+            className={inputClass}
+            value={item.name}
+            placeholder="Name"
+            onChange={(e) => {
+              const next = [...items]
+              next[index] = { ...item, name: e.target.value }
+              onChange(next)
+            }}
+          />
+          <textarea
+            className={inputClass}
+            rows={2}
+            value={item.desc}
+            placeholder="Description"
+            onChange={(e) => {
+              const next = [...items]
+              next[index] = { ...item, desc: e.target.value }
+              onChange(next)
+            }}
+          />
+          <button
+            type="button"
+            className="text-sm underline"
+            onClick={() => onChange(items.filter((_, i) => i !== index))}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="text-sm underline"
+        onClick={() => onChange([...items, { name: '', desc: '' }])}
+      >
+        Add
+      </button>
+    </fieldset>
+  )
+}
+
+export function ScribePage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [monster, setMonster] = useState<Monster>(() => createBlankMonster())
+  const [preview, setPreview] = useState<string | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let url: string | null = null
+    async function load() {
+      if (!id) return
+      const row = await getMonster(id)
+      if (!row) {
+        setError('Entry not found')
+        return
+      }
+      setMonster(row)
+      url = await getImageUrl(row.imageBlobId)
+      setPreview(url)
+    }
+    void load()
+    return () => {
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [id])
+
+  function update<K extends keyof Monster>(key: K, value: Monster[K]) {
+    setMonster((current) => ({ ...current, [key]: value }))
+  }
+
+  return (
+    <form
+      className="space-y-4 rounded border border-oxblood/40 bg-statblock p-6"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        if (!monster.name.trim()) {
+          setError('Name is required')
+          return
+        }
+        const next = { ...monster, name: monster.name.trim(), updatedAt: new Date().toISOString() }
+        await saveMonster(next)
+        navigate(`/monster/${next.id}`)
+      }}
+    >
+      <h2 className="font-display text-2xl text-oxblood uppercase">
+        {id ? 'Amend the entry' : 'Scribe a monster'}
+      </h2>
+      {error ? <p className="text-oxblood">{error}</p> : null}
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Name">
+          <input className={inputClass} value={monster.name} onChange={(e) => update('name', e.target.value)} />
+        </Field>
+        <Field label="Type">
+          <input className={inputClass} value={monster.type} onChange={(e) => update('type', e.target.value)} />
+        </Field>
+        <Field label="Subtype">
+          <input
+            className={inputClass}
+            value={monster.subtype ?? ''}
+            onChange={(e) => update('subtype', e.target.value || null)}
+          />
+        </Field>
+        <Field label="Alignment">
+          <input className={inputClass} value={monster.alignment} onChange={(e) => update('alignment', e.target.value)} />
+        </Field>
+        <Field label="Size">
+          <select className={inputClass} value={monster.size} onChange={(e) => update('size', e.target.value as Monster['size'])}>
+            {SIZES.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Challenge">
+          <input className={inputClass} value={monster.cr} onChange={(e) => update('cr', e.target.value)} />
+        </Field>
+        <Field label="Armor Class">
+          <input className={inputClass} value={String(monster.ac)} onChange={(e) => update('ac', e.target.value)} />
+        </Field>
+        <Field label="Hit Points">
+          <input
+            type="number"
+            className={inputClass}
+            value={monster.hp}
+            onChange={(e) => update('hp', Number(e.target.value))}
+          />
+        </Field>
+        <Field label="Hit Dice">
+          <input className={inputClass} value={monster.hit_dice} onChange={(e) => update('hit_dice', e.target.value)} />
+        </Field>
+        <Field label="Speed">
+          <input className={inputClass} value={monster.speed} onChange={(e) => update('speed', e.target.value)} />
+        </Field>
+      </div>
+      <fieldset>
+        <legend className="font-display text-sm uppercase text-oxblood">Ability scores</legend>
+        <div className="mt-2 grid grid-cols-6 gap-2">
+          {['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map((label, index) => (
+            <Field key={label} label={label}>
+              <input
+                type="number"
+                className={inputClass}
+                value={monster.stats[index]}
+                onChange={(e) => {
+                  const stats = [...monster.stats] as Monster['stats']
+                  stats[index] = Number(e.target.value)
+                  update('stats', stats)
+                }}
+              />
+            </Field>
+          ))}
+        </div>
+      </fieldset>
+      <Field label="Senses">
+        <input className={inputClass} value={monster.senses} onChange={(e) => update('senses', e.target.value)} />
+      </Field>
+      <Field label="Languages">
+        <input className={inputClass} value={monster.languages} onChange={(e) => update('languages', e.target.value)} />
+      </Field>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Damage Vulnerabilities">
+          <input className={inputClass} value={monster.damage_vulnerabilities ?? ''} onChange={(e) => update('damage_vulnerabilities', e.target.value || null)} />
+        </Field>
+        <Field label="Damage Resistances">
+          <input className={inputClass} value={monster.damage_resistances ?? ''} onChange={(e) => update('damage_resistances', e.target.value || null)} />
+        </Field>
+        <Field label="Damage Immunities">
+          <input className={inputClass} value={monster.damage_immunities ?? ''} onChange={(e) => update('damage_immunities', e.target.value || null)} />
+        </Field>
+        <Field label="Condition Immunities">
+          <input className={inputClass} value={monster.condition_immunities ?? ''} onChange={(e) => update('condition_immunities', e.target.value || null)} />
+        </Field>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Habitat">
+          <select className={inputClass} value={monster.habitat} onChange={(e) => update('habitat', e.target.value as Monster['habitat'])}>
+            {HABITATS.map((h) => <option key={h}>{h}</option>)}
+          </select>
+        </Field>
+        <Field label="Archetype">
+          <select className={inputClass} value={monster.archetype} onChange={(e) => update('archetype', e.target.value as Monster['archetype'])}>
+            {ARCHETYPES.map((h) => <option key={h}>{h}</option>)}
+          </select>
+        </Field>
+        <Field label="Group">
+          <select className={inputClass} value={monster.group} onChange={(e) => update('group', e.target.value as Monster['group'])}>
+            {GROUPS.map((h) => <option key={h}>{h}</option>)}
+          </select>
+        </Field>
+        <Field label="Personality">
+          <select className={inputClass} value={monster.personality} onChange={(e) => update('personality', e.target.value as Monster['personality'])}>
+            {PERSONALITIES.map((h) => <option key={h}>{h}</option>)}
+          </select>
+        </Field>
+      </div>
+      <fieldset>
+        <legend className="font-display text-sm uppercase text-oxblood">Locomotion</legend>
+        <div className="mt-2 flex gap-4">
+          {LOCOMOTIONS.map((loc) => (
+            <label key={loc} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={monster.locomotion.includes(loc)}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...monster.locomotion, loc]
+                    : monster.locomotion.filter((item) => item !== loc)
+                  update('locomotion', (next.length ? next : ['Terrestrial']) as Locomotion[])
+                }}
+              />
+              {loc}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <FeatureEditor title="Traits" items={monster.traits} onChange={(traits) => update('traits', traits)} />
+      <FeatureEditor title="Actions" items={monster.actions} onChange={(actions) => update('actions', actions)} />
+      <FeatureEditor title="Reactions" items={monster.reactions} onChange={(reactions) => update('reactions', reactions)} />
+      <FeatureEditor title="Legendary Actions" items={monster.legendary_actions} onChange={(legendary_actions) => update('legendary_actions', legendary_actions)} />
+      <FeatureEditor title="Spells" items={monster.spells} onChange={(spells) => update('spells', spells)} />
+      <Field label="Lore">
+        <textarea className={inputClass} rows={4} value={monster.lore} onChange={(e) => update('lore', e.target.value)} />
+      </Field>
+      <Field label="Tactics">
+        <textarea className={inputClass} rows={3} value={monster.tactics} onChange={(e) => update('tactics', e.target.value)} />
+      </Field>
+      <Field label="Drops">
+        <textarea className={inputClass} rows={2} value={monster.drops} onChange={(e) => update('drops', e.target.value)} />
+      </Field>
+      <Field label="Illustration">
+        <input
+          type="file"
+          accept="image/*"
+          onChange={async (e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            const imageBlobId = await saveImage(file, file.type)
+            update('imageBlobId', imageBlobId)
+            if (preview) URL.revokeObjectURL(preview)
+            setPreview(URL.createObjectURL(file))
+          }}
+        />
+        {preview ? <img src={preview} alt="" className="mt-2 max-h-64 rounded border border-oxblood/30" /> : null}
+      </Field>
+      <button type="submit" className="rounded bg-oxblood px-4 py-2 font-display text-parchment uppercase">
+        Save to the Bestiary
+      </button>
+    </form>
+  )
+}

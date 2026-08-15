@@ -1,0 +1,70 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-oxblood: #822000;
+  --color-oxblood-dark: #5c0000;
+  --color-parchment: #f4e4c1;
+  --color-statblock: #fdf1dc;
+  --color-ink: #1a1208;
+  --color-rule: #922610;
+  --font-display: 'Cinzel', serif;
+  --font-body: 'Source Serif 4', serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  background-color: #cbb892;
+  background-image:
+    radial-gradient(ellipse at 20% 10%, rgba(130, 90, 40, 0.18), transparent 50%),
+    radial-gradient(ellipse at 80% 90%, rgba(90, 110, 50, 0.12), transparent 45%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(90, 60, 20, 0.03) 0px,
+      rgba(90, 60, 20, 0.03) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+}
+
+.stat-rule {
+  height: 3px;
+  border: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-rule) 8%,
+    var(--color-rule) 92%,
+    transparent
+  );
+}
+
+.stat-rule-thin {
+  height: 1px;
+  border: 0;
+  background: var(--color-rule);
+}
+
+.dice-hot {
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-bottom: 1px dotted var(--color-rule);
+}
+
+.dice-hot:hover,
+.dice-hot:focus-visible {
+  color: var(--color-oxblood);
+  border-bottom-style: solid;
+  outline: none;
+}
