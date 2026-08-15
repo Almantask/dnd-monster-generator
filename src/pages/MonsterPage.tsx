@@ -5,6 +5,7 @@ import { deleteMonster, getImageUrl, getMonster } from '@/lib/storage.ts'
 import { exportMonsters } from '@/lib/importExport.ts'
 import { dataUrlToBlob, generateImage } from '@/lib/api.ts'
 import { saveImage, saveMonster } from '@/lib/storage.ts'
+import { ConjureProgressModal } from '@/components/common/ConjureProgressModal.tsx'
 import type { Monster } from '@shared/monsterSchema.ts'
 
 export function MonsterPage() {
@@ -46,6 +47,7 @@ export function MonsterPage() {
 
   return (
     <div>
+      {busy && <ConjureProgressModal busy="art" name={monster.name} />}
       <div className="mb-4 flex flex-wrap gap-3">
         <Link className="underline" to="/">
           Back to Bestiary

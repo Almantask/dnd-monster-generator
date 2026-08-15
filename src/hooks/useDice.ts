@@ -4,8 +4,8 @@ import type { DiceExpr, RollResult } from '@shared/dice.ts'
 export type DiceContextValue = {
   rolls: RollResult[]
   push: (result: RollResult) => void
-  rollExpr: (expr: DiceExpr, label?: string) => RollResult
-  rollCheck: (bonus: number, label?: string) => RollResult
+  rollExpr: (expr: DiceExpr, label?: string) => void
+  rollCheck: (bonus: number, label?: string) => void
   clear: () => void
 }
 

@@ -56,9 +56,9 @@ export function SettingsPage() {
       </label>
       {status ? (
         <ul className="text-sm">
-          <li>OpenRouter: {status.openrouter ? 'configured' : 'missing'}</li>
-          <li>Gemini Flash Image: {status.gemini ? 'configured (~500/day)' : 'not set (Pollinations fallback)'}</li>
-          <li>Pollinations: {status.pollinations ? 'key present' : 'anonymous flux (ok)'}</li>
+          <li>Google AI Studio (Gemini 2.5 Flash + Imagen): {status.gemini ? 'configured' : 'not set'}</li>
+          <li>OpenRouter (fallback): {status.openrouter ? 'configured' : 'not set'}</li>
+          <li>Pollinations (FLUX fallback): {status.pollinations ? 'key present' : 'anonymous flux (active)'}</li>
           <li>Hugging Face: {status.huggingface ? 'configured' : 'not set'}</li>
           <li>Passphrase required: {status.passphraseRequired ? 'yes' : 'no'}</li>
         </ul>

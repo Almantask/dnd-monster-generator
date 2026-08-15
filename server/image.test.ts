@@ -30,10 +30,39 @@ describe('generateImage', () => {
     vi.unstubAllGlobals()
   })
 
-  it('uses Gemini 2.5 Flash Image when the AI Studio key works', async () => {
+  it('uses Imagen 4 / 3 when the AI Studio key works', async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       const href = String(url)
       if (href.includes('generativelanguage.googleapis.com')) {
+        return jsonResponse({
+          predictions: [
+            {
+              bytesBase64Encoded: pngB64,
+              mimeType: 'image/png',
+            },
+          ],
+        })
+      }
+      return new Response('unexpected', { status: 500 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await generateImage(input, { env: { GEMINI_API_KEY: 'studio-key' } })
+
+    expect(result.provider).toBe('imagen')
+    expect(result.mime).toBe('image/png')
+    expect(result.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(':predict')
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('pollinations'))).toBe(false)
+  })
+
+  it('falls back to multimodal Gemini if Imagen models fail', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url)
+      if (href.includes(':predict')) {
+        return new Response('not found', { status: 404 })
+      }
+      if (href.includes(':generateContent')) {
         return jsonResponse({
           candidates: [
             {
@@ -52,14 +81,9 @@ describe('generateImage', () => {
 
     expect(result.provider).toBe('gemini')
     expect(result.mime).toBe('image/png')
-    expect(result.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-2.5-flash-image')
-    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('pollinations'))).toBe(
-      false,
-    )
   })
 
-  it('falls back to Pollinations when Gemini fails', async () => {
+  it('falls back to Pollinations when Google AI Studio fails', async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       const href = String(url)
       if (href.includes('generativelanguage.googleapis.com')) {
@@ -77,7 +101,7 @@ describe('generateImage', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('generativelanguage.googleapis.com')
   })
 
-  it('skips Gemini and uses Pollinations when no AI Studio key is set', async () => {
+  it('skips Google AI Studio and uses Pollinations when no AI Studio key is set', async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       const href = String(url)
       if (href.includes('pollinations.ai')) return imageResponse()

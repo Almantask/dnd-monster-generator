@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { importPayload } from './importAdapter.ts'
+import { importPayload, parseMonsterJson } from './importAdapter.ts'
 
 const knight = {
   name: 'Samogitian Knight',
@@ -83,3 +83,30 @@ describe('importPayload', () => {
     expect(files).toHaveLength(2)
   })
 })
+
+describe('parseMonsterJson and extractJsonFromText', () => {
+  it('parses raw JSON text', () => {
+    const jsonStr = JSON.stringify(knight)
+    const result = parseMonsterJson(jsonStr)
+    expect(result.monster.name).toBe('Samogitian Knight')
+    expect(result.monster.hp).toBe(45)
+  })
+
+  it('parses markdown-fenced JSON text with surrounding explanation', () => {
+    const fenced = `Here is the statblock:
+\`\`\`json
+${JSON.stringify(knight, null, 2)}
+\`\`\`
+Hope this helps your campaign!`
+    const result = parseMonsterJson(fenced)
+    expect(result.monster.name).toBe('Samogitian Knight')
+    expect(result.monster.cr).toBe('2')
+    expect(result.monster.actions).toHaveLength(1)
+  })
+
+  it('throws a helpful error on empty input or invalid JSON', () => {
+    expect(() => parseMonsterJson('')).toThrow('empty')
+    expect(() => parseMonsterJson('This is not json at all')).toThrow()
+  })
+})
+

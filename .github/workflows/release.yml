@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run quality checks
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+
+      - name: Build web application
+        run: npm run build
+        env:
+          VITE_BASE_PATH: /dnd-monster-generator/
+
+      - name: Create release zip archive
+        run: |
+          cd dist
+          zip -r ../the-bestiary-web.zip .
+          cd ..
+
+      - name: Determine tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          name: The Bestiary ${{ steps.vars.outputs.tag_name }}
+          draft: false
+          prerelease: false
+          files: the-bestiary-web.zip
+          body: |
+            ## 🐉 The Bestiary ${{ steps.vars.outputs.tag_name }}
+
+            ### 🌐 Live Deployment Links
+            - **Google Cloud Run (Full-Stack)**: [https://bestiary-api-4klhpyohsa-uc.a.run.app/](https://bestiary-api-4klhpyohsa-uc.a.run.app/)
+            - **GitHub Pages (Web App)**: [https://almantask.github.io/dnd-monster-generator/](https://almantask.github.io/dnd-monster-generator/)
+
+            ---
+
+            ### ✨ Key Features
+            - **AI Monster Conjuration**: Automatic D&D 5e statblock generation by party level & difficulty.
+            - **AI Portrait Generation**: High-quality painted monster art via Google AI Studio (Gemini 2.5 Flash Image) + fallback providers.
+            - **3D Physics Dice Box**: Interactive clickable rolling directly on statblocks powered by Three.js & Rapier3D.
+            - **Custom Scribe Editor**: Manual statblock editing with authentic D&D parchment layout and JSON import/export.
+            - **Local Privacy**: Monsters and portraits are stored privately in IndexedDB in your browser.
+
+            ---
+            *Standalone client assets are attached below as `the-bestiary-web.zip`.*

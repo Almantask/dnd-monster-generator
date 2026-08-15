@@ -280,4 +280,118 @@ export function withIdentity(
   })
 }
 
+export const EXAMPLE_STATBLOCK_JSON = {
+  name: 'Samogitian Knight',
+  size: 'Medium',
+  type: 'humanoid',
+  subtype: 'human',
+  alignment: 'chaotic neutral',
+  ac: '16 (half plate)',
+  hp: 45,
+  hit_dice: '6d8+18',
+  speed: '30 ft.',
+  stats: [18, 14, 14, 10, 12, 12],
+  saves: [
+    { strength: 6 },
+    { dexterity: 4 },
+  ],
+  skills: [
+    { athletics: 6 },
+    { intimidation: 4 },
+    { survival: 3 },
+  ],
+  damage_vulnerabilities: 'none',
+  damage_resistances: 'none',
+  damage_immunities: 'none',
+  condition_immunities: 'none',
+  senses: 'passive Perception 11',
+  languages: 'Common, Old Samogitian',
+  cr: '2',
+  spells: [],
+  traits: [
+    {
+      name: 'Ferocious Charge',
+      desc: 'If the knight moves at least 20 feet straight toward a target and hits with a melee weapon attack on the same turn, the target takes an extra 7 (2d6) slashing damage and must succeed on a DC 14 Strength saving throw or be knocked prone.',
+    },
+    {
+      name: 'Duelist Instinct',
+      desc: 'When the knight has no other creature within 5 feet of them except their target, their weapon attacks deal an extra 3 (1d6) damage.',
+    },
+  ],
+  actions: [
+    {
+      name: 'Greatsword',
+      desc: 'Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 12 (2d6+5) slashing damage.',
+    },
+    {
+      name: 'Throwing Axe (2/Day)',
+      desc: 'Ranged Weapon Attack: +4 to hit, range 20/60 ft., one target. Hit: 8 (1d8+4) slashing damage.',
+    },
+    {
+      name: 'Reckless Cleave (Recharge 5-6)',
+      desc: 'The knight swings wildly in a horizontal arc. Each creature within 5 feet of the knight must succeed on a DC 14 Dexterity saving throw or take 11 (2d6+4) slashing damage.',
+    },
+  ],
+  reactions: [
+    {
+      name: 'Parry',
+      desc: 'When a creature the knight can see hits them with a melee attack, the knight can use their reaction to add +2 to their AC against that attack.',
+    },
+  ],
+  legendary_actions: [],
+}
+
+export const STATBLOCK_GENERATOR_PROMPT = `You are a statblock generator for D&D 5e. Here is an example:
+
+\`\`\`json
+${JSON.stringify(EXAMPLE_STATBLOCK_JSON, null, 2)}
+\`\`\`
+
+input: description of a creature
+Output: statblock in the same format as in example`
+
+export function extractJsonFromText(text: string): unknown {
+  const trimmed = text.trim()
+  if (!trimmed) throw new Error('JSON text is empty')
+
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed)
+    const raw = (fenced?.[1] ?? trimmed).trim()
+    try {
+      return JSON.parse(raw)
+    } catch {
+      const firstBrace = raw.indexOf('{')
+      const firstBracket = raw.indexOf('[')
+      let start = -1
+      let isArray = false
+      if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+        start = firstBrace
+        isArray = false
+      } else if (firstBracket !== -1) {
+        start = firstBracket
+        isArray = true
+      }
+      if (start === -1) {
+        throw new Error('No valid JSON object or array found in the input text.')
+      }
+      const end = isArray ? raw.lastIndexOf(']') : raw.lastIndexOf('}')
+      if (end === -1 || end < start) {
+        throw new Error('Incomplete JSON syntax: closing bracket or brace is missing.')
+      }
+      return JSON.parse(raw.slice(start, end + 1))
+    }
+  }
+}
+
+export function parseMonsterJson(text: string): ImportedFile {
+  const parsed = extractJsonFromText(text)
+  const items = importPayload(parsed)
+  if (!items.length || !items[0]) {
+    throw new Error('Could not parse monster data from JSON')
+  }
+  return items[0]
+}
+
 export type { Habitat, Archetype, Locomotion, GroupType, Personality }

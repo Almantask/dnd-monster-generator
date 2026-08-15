@@ -18,9 +18,11 @@ describe('SettingsPage', () => {
     localStorage.clear()
   })
 
-  it('shows Gemini Flash Image as the primary portrait provider', async () => {
+  it('shows Google AI Studio as configured provider', async () => {
     render(<SettingsPage />)
-    expect(await screen.findByText(/Gemini Flash Image: configured/)).toBeTruthy()
-    expect(screen.getByText(/Pollinations: anonymous flux \(ok\)/)).toBeTruthy()
+    expect(
+      await screen.findByText(/Google AI Studio \(Gemini 2\.5 Flash \+ Imagen\): configured/),
+    ).toBeTruthy()
+    expect(screen.getByText(/Pollinations \(FLUX fallback\): anonymous flux \(active\)/)).toBeTruthy()
   })
 })

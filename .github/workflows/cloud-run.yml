@@ -6,6 +6,11 @@ on:
     paths:
       - server/**
       - shared/**
+      - src/**
+      - public/**
+      - index.html
+      - vite.config.ts
+      - tsconfig*.json
       - Dockerfile
       - package.json
       - package-lock.json
@@ -13,7 +18,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    name: Validate Build & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
   deploy:
+    name: Deploy to Cloud Run
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,12 +54,22 @@ jobs:
           CORS_ORIGIN: ${{ vars.CORS_ORIGIN }}
         run: |
           gcloud config set project "$PROJECT"
-          ENV_VARS="OPENROUTER_API_KEY=${OPENROUTER_API_KEY}"
-          if [ -n "$GEMINI_API_KEY" ]; then ENV_VARS="$ENV_VARS,GEMINI_API_KEY=${GEMINI_API_KEY}"; fi
-          if [ -n "$POLLINATIONS_API_KEY" ]; then ENV_VARS="$ENV_VARS,POLLINATIONS_API_KEY=${POLLINATIONS_API_KEY}"; fi
-          if [ -n "$HF_TOKEN" ]; then ENV_VARS="$ENV_VARS,HF_TOKEN=${HF_TOKEN}"; fi
-          if [ -n "$GENERATION_PASSPHRASE" ]; then ENV_VARS="$ENV_VARS,GENERATION_PASSPHRASE=${GENERATION_PASSPHRASE}"; fi
-          if [ -n "$CORS_ORIGIN" ]; then ENV_VARS="$ENV_VARS,CORS_ORIGIN=${CORS_ORIGIN}"; fi
+          
+          # Construct comma-separated environment variables dynamically
+          VARS=()
+          [ -n "$OPENROUTER_API_KEY" ] && VARS+=("OPENROUTER_API_KEY=${OPENROUTER_API_KEY}")
+          [ -n "$GEMINI_API_KEY" ] && VARS+=("GEMINI_API_KEY=${GEMINI_API_KEY}")
+          [ -n "$POLLINATIONS_API_KEY" ] && VARS+=("POLLINATIONS_API_KEY=${POLLINATIONS_API_KEY}")
+          [ -n "$HF_TOKEN" ] && VARS+=("HF_TOKEN=${HF_TOKEN}")
+          [ -n "$GENERATION_PASSPHRASE" ] && VARS+=("GENERATION_PASSPHRASE=${GENERATION_PASSPHRASE}")
+          [ -n "$CORS_ORIGIN" ] && VARS+=("CORS_ORIGIN=${CORS_ORIGIN}")
+          
+          ENV_FLAG=""
+          if [ ${#VARS[@]} -gt 0 ]; then
+            IFS=','
+            ENV_FLAG="--set-env-vars ${VARS[*]}"
+          fi
+          
           gcloud run deploy bestiary-api \
             --source . \
             --region us-central1 \
@@ -45,4 +77,5 @@ jobs:
             --memory 512Mi \
             --timeout 120 \
             --min-instances 0 \
-            --set-env-vars "$ENV_VARS"
+            $ENV_FLAG
+

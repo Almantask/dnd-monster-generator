@@ -68,3 +68,12 @@ body {
   border-bottom-style: solid;
   outline: none;
 }
+
+.dice-hot [data-dice-marker] {
+  opacity: 0.8;
+}
+
+.dice-hot:hover [data-dice-marker],
+.dice-hot:focus-visible [data-dice-marker] {
+  opacity: 1;
+}

@@ -192,8 +192,12 @@ export function BestiaryPage() {
           <p className="mt-2">
             <Link className="underline" to="/conjure">
               Conjure a beast
-            </Link>{' '}
-            or{' '}
+            </Link>
+            {', '}
+            <Link className="underline" to="/scribe?mode=json">
+              paste JSON
+            </Link>
+            {', or '}
             <Link className="underline" to="/scribe">
               scribe one by hand
             </Link>

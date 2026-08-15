@@ -4,6 +4,8 @@ import { abilityModifier, formatModifier, parseDiceExpressions } from '@shared/d
 import type { Monster, NamedFeature } from '@shared/monsterSchema.ts'
 import { typeLine, formatAc } from '@/lib/utils.ts'
 import { DiceText } from '@/components/dice/DiceText.tsx'
+import { DiceHotButton } from '@/components/dice/DiceHotButton.tsx'
+import { DiceMarker } from '@/components/dice/DiceMarker.tsx'
 import { rollFeature } from '@/lib/rollFeature.ts'
 import { useDice } from '@/hooks/useDice.ts'
 
@@ -25,13 +27,12 @@ function FeatureList({ items }: { items: NamedFeature[] }) {
     <div className="space-y-2">
       {items.map((item) => (
         <p key={item.name}>
-          <button
-            type="button"
-            className="dice-hot mr-1 font-bold italic"
+          <DiceHotButton
+            className="mr-1 font-bold italic"
             onClick={() => rollFeature(`${item.name} ${item.desc}`, item.name, dice)}
           >
             {item.name}.
-          </button>
+          </DiceHotButton>
           <DiceText text={item.desc} label={item.name} />
         </p>
       ))}
@@ -81,13 +82,9 @@ export function Statblock({
         <p>
           <strong>Hit Points</strong>{' '}
           {hitDice ? (
-            <button
-              type="button"
-              className="dice-hot"
-              onClick={() => dice.rollExpr(hitDice, 'Hit dice')}
-            >
+            <DiceHotButton onClick={() => dice.rollExpr(hitDice, 'Hit dice')}>
               {monster.hp} ({monster.hit_dice})
-            </button>
+            </DiceHotButton>
           ) : (
             <>
               {monster.hp} ({monster.hit_dice})
@@ -106,10 +103,13 @@ export function Statblock({
               <button
                 key={abbrev}
                 type="button"
-                className="dice-hot py-1"
+                className="dice-hot relative py-1"
                 onClick={() => dice.rollCheck(mod, abbrev)}
               >
-                <div className="font-display text-xs font-bold text-oxblood">{abbrev}</div>
+                <div className="flex items-center justify-center gap-0.5 font-display text-xs font-bold text-oxblood">
+                  {abbrev}
+                  <DiceMarker />
+                </div>
                 <div>
                   {score} ({formatModifier(mod)})
                 </div>
@@ -123,14 +123,13 @@ export function Statblock({
             <strong>Saving Throws</strong>{' '}
             {monster.saves.map((entry, i) =>
               Object.entries(entry).map(([name, bonus]) => (
-                <button
+                <DiceHotButton
                   key={`${name}-${i}`}
-                  type="button"
-                  className="dice-hot mr-2"
+                  className="mr-2"
                   onClick={() => dice.rollCheck(bonus, `${name} save`)}
                 >
                   {name} {formatModifier(bonus)}
-                </button>
+                </DiceHotButton>
               )),
             )}
           </p>
@@ -140,14 +139,13 @@ export function Statblock({
             <strong>Skills</strong>{' '}
             {monster.skills.map((entry, i) =>
               Object.entries(entry).map(([name, bonus]) => (
-                <button
+                <DiceHotButton
                   key={`${name}-${i}`}
-                  type="button"
-                  className="dice-hot mr-2"
+                  className="mr-2"
                   onClick={() => dice.rollCheck(bonus, name)}
                 >
                   {name} {formatModifier(bonus)}
-                </button>
+                </DiceHotButton>
               )),
             )}
           </p>

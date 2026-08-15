@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Monster, NamedFeature } from '@shared/monsterSchema.ts'
 import {
   ARCHETYPES,
@@ -12,6 +12,7 @@ import {
 } from '@shared/taxonomies.ts'
 import { createBlankMonster } from '@shared/importAdapter.ts'
 import { getImageUrl, getMonster, saveImage, saveMonster } from '@/lib/storage.ts'
+import { PasteJsonEditor } from '@/components/statblock/PasteJsonEditor.tsx'
 
 function Field({
   label,
@@ -87,6 +88,8 @@ function FeatureEditor({
 
 export function ScribePage() {
   const { id } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const mode = searchParams.get('mode') === 'json' ? 'json' : 'form'
   const navigate = useNavigate()
   const [monster, setMonster] = useState<Monster>(() => createBlankMonster())
   const [preview, setPreview] = useState<string | null>(null)
@@ -115,24 +118,62 @@ export function ScribePage() {
     setMonster((current) => ({ ...current, [key]: value }))
   }
 
+  const modeSwitcher = !id ? (
+    <div className="mb-6 flex justify-center gap-3 font-display text-sm uppercase tracking-wider">
+      <button
+        type="button"
+        onClick={() => setSearchParams({ mode: 'form' })}
+        className={`rounded px-4 py-1.5 transition ${
+          mode === 'form'
+            ? 'bg-oxblood text-parchment shadow'
+            : 'border border-oxblood/40 bg-statblock text-oxblood hover:bg-oxblood/10'
+        }`}
+      >
+        ✍️ Manual Form
+      </button>
+      <button
+        type="button"
+        onClick={() => setSearchParams({ mode: 'json' })}
+        className={`rounded px-4 py-1.5 transition ${
+          mode === 'json'
+            ? 'bg-oxblood text-parchment shadow'
+            : 'border border-oxblood/40 bg-statblock text-oxblood hover:bg-oxblood/10'
+        }`}
+      >
+        📋 Paste JSON
+      </button>
+    </div>
+  ) : null
+
+  if (!id && mode === 'json') {
+    return (
+      <div className="space-y-4">
+        {modeSwitcher}
+        <PasteJsonEditor />
+      </div>
+    )
+  }
+
   return (
-    <form
-      className="space-y-4 rounded border border-oxblood/40 bg-statblock p-6"
-      onSubmit={async (e) => {
-        e.preventDefault()
-        if (!monster.name.trim()) {
-          setError('Name is required')
-          return
-        }
-        const next = { ...monster, name: monster.name.trim(), updatedAt: new Date().toISOString() }
-        await saveMonster(next)
-        navigate(`/monster/${next.id}`)
-      }}
-    >
-      <h2 className="font-display text-2xl text-oxblood uppercase">
-        {id ? 'Amend the entry' : 'Scribe a monster'}
-      </h2>
-      {error ? <p className="text-oxblood">{error}</p> : null}
+    <div className="space-y-4">
+      {modeSwitcher}
+      <form
+        className="space-y-4 rounded border border-oxblood/40 bg-statblock p-6"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          if (!monster.name.trim()) {
+            setError('Name is required')
+            return
+          }
+          const next = { ...monster, name: monster.name.trim(), updatedAt: new Date().toISOString() }
+          await saveMonster(next)
+          navigate(`/monster/${next.id}`)
+        }}
+      >
+        <h2 className="font-display text-2xl text-oxblood uppercase">
+          {id ? 'Amend the entry' : 'Scribe a monster'}
+        </h2>
+        {error ? <p className="text-oxblood">{error}</p> : null}
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="Name">
           <input className={inputClass} value={monster.name} onChange={(e) => update('name', e.target.value)} />
@@ -292,5 +333,7 @@ export function ScribePage() {
         Save to the Bestiary
       </button>
     </form>
+    </div>
   )
 }
+

@@ -13,7 +13,7 @@ export function AppShell() {
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-28 pt-6">
       <header className="mb-8 border-b-2 border-oxblood pb-4 text-center">
         <p className="font-display text-xs tracking-[0.4em] text-oxblood uppercase">
-          A tome of terrible wonders
+          A custom D&D monsters generator
         </p>
         <h1 className="font-display text-4xl font-bold text-oxblood-dark md:text-5xl">
           The Bestiary

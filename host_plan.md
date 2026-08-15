@@ -1,16 +1,15 @@
 # Host plan
 
-The UI is a GitHub Pages app. Generation goes through a Cloud Run API so keys never ship in the JavaScript.
+The application supports two deployment setups:
+1. **Full-Stack Cloud Run (Recommended)**: The entire website (React UI + Hono API) is bundled and served directly on Cloud Run from a single URL with zero CORS configuration.
+2. **Split Hosting**: The UI is hosted on GitHub Pages (`https://almantask.github.io/dnd-monster-generator/`) and connects to the Cloud Run API backend.
 
 Repo: `Almantask/dnd-monster-generator`  
-Site: `https://almantask.github.io/dnd-monster-generator/`  
+Cloud Run URL: `https://bestiary-api-4klhpyohsa-uc.a.run.app`  
+GitHub Pages: `https://almantask.github.io/dnd-monster-generator/`  
 CORS origin: `https://almantask.github.io` (no `/dnd-monster-generator/` path)
 
-Push local changes to `main` before the first deploy, or production will miss them.
-
-**Order:** Cloud Run first → copy the service URL → set `VITE_API_URL` → run Pages.
-
-`.env` is only for this machine. Production keys live in GitHub Secrets and are injected into Cloud Run at deploy time.
+`.env` is only for this machine. Production keys live in GitHub Secrets / Cloud Run environment variables.
 
 ---
 
