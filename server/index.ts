@@ -9,6 +9,7 @@ import { DIFFICULTIES, type Difficulty } from '../shared/taxonomies.ts'
 import { generateStatblock } from './statblock.ts'
 import { generateImage } from './image.ts'
 import { rateLimit } from './rateLimit.ts'
+import { getGeminiQuotaStatus } from './quota.ts'
 
 const app = new Hono()
 const origin = process.env.CORS_ORIGIN ?? '*'
@@ -29,8 +30,11 @@ app.get('/api/health', (c) => {
 })
 
 app.get('/api/status', (c) => {
+  const quota = getGeminiQuotaStatus()
   const status = {
     gemini: Boolean(process.env.GEMINI_API_KEY),
+    geminiQuotaExceeded: quota.exceeded,
+    geminiQuotaResetInMs: quota.resetInMs,
     openrouter: Boolean(process.env.OPENROUTER_API_KEY),
     pollinations: Boolean(process.env.POLLINATIONS_API_KEY),
     huggingface: Boolean(process.env.HF_TOKEN),

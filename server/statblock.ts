@@ -15,6 +15,12 @@ import {
   encounterBudget,
   suggestChallengeRating,
 } from '../shared/encounterBudget.ts'
+import {
+  clearGeminiQuota,
+  isGeminiQuotaExceeded,
+  isQuotaError,
+  markGeminiQuotaExceeded,
+} from './quota.ts'
 
 export type StatblockRuntime = {
   env?: NodeJS.Dict<string>
@@ -222,13 +228,18 @@ export async function generateStatblock(
   const prompt = buildPrompt(input)
   console.log(`[STATBLOCK] Formulated prompt for "${input.name}" (Length: ${prompt.length} chars)`)
 
-  // 1. Primary: Google AI Studio (Gemini 2.5 Flash)
-  if (hasGemini) {
+  // 1. Primary: Google AI Studio (Gemini 2.5 Flash / 3.5 Flash)
+  const quotaExceeded = isGeminiQuotaExceeded()
+  const canUseGemini = hasGemini && (!quotaExceeded || !hasOpenRouter)
+
+  if (canUseGemini) {
     const userGeminiModel = env.GEMINI_STATBLOCK_MODEL?.trim()
     const geminiModels = [
       ...(userGeminiModel ? [userGeminiModel] : []),
       ...GEMINI_STATBLOCK_MODELS,
     ].filter((m, idx, arr) => arr.indexOf(m) === idx)
+
+    let anyQuotaExceeded = false
 
     for (let i = 0; i < geminiModels.length; i++) {
       const model = geminiModels[i]!
@@ -238,13 +249,24 @@ export async function generateStatblock(
         const parsed = extractJson(content)
         const monster = generatedMonsterSchema.parse(parsed)
         console.log(`[STATBLOCK] ✓ Validated schema successfully with Gemini model: "${model}"`)
+        clearGeminiQuota()
         return { monster, model, provider: 'gemini' }
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error)
         console.warn(`[STATBLOCK] Gemini model "${model}" failed: ${msg}`)
+        if (isQuotaError(undefined, msg)) {
+          anyQuotaExceeded = true
+        }
       }
     }
+
+    if (anyQuotaExceeded) {
+      console.warn('[STATBLOCK] Gemini quota exceeded. Marking quota cooldown...')
+      markGeminiQuotaExceeded()
+    }
     console.warn('[STATBLOCK] All Gemini models failed. Checking OpenRouter fallback...')
+  } else if (hasGemini && hasOpenRouter && quotaExceeded) {
+    console.log('[STATBLOCK] Gemini quota currently exceeded (cooldown active). Using OpenRouter fallback...')
   }
 
   // 2. Fallback: OpenRouter

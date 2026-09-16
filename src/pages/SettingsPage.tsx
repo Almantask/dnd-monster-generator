@@ -7,6 +7,8 @@ export function SettingsPage() {
   const [passphrase, setPassphraseState] = useState(getPassphrase())
   const [status, setStatus] = useState<{
     gemini: boolean
+    geminiQuotaExceeded?: boolean
+    geminiQuotaResetInMs?: number
     openrouter: boolean
     pollinations: boolean
     huggingface: boolean
@@ -56,7 +58,14 @@ export function SettingsPage() {
       </label>
       {status ? (
         <ul className="text-sm">
-          <li>Google AI Studio (Gemini 2.5 Flash + Imagen): {status.gemini ? 'configured' : 'not set'}</li>
+          <li>
+            Google AI Studio (Gemini 2.5 Flash + Imagen):{' '}
+            {status.gemini
+              ? status.geminiQuotaExceeded
+                ? 'quota exceeded (using fallback)'
+                : 'configured'
+              : 'not set'}
+          </li>
           <li>OpenRouter (fallback): {status.openrouter ? 'configured' : 'not set'}</li>
           <li>Pollinations (FLUX fallback): {status.pollinations ? 'key present' : 'anonymous flux (active)'}</li>
           <li>Hugging Face: {status.huggingface ? 'configured' : 'not set'}</li>

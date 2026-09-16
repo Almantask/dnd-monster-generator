@@ -81,6 +81,38 @@ describe('generateImage', () => {
 
     expect(result.provider).toBe('gemini')
     expect(result.mime).toBe('image/png')
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('pollinations'))).toBe(false)
+  })
+
+  it('uses Gemini multimodal image generation directly when GEMINI_IMAGE_MODEL is set before quota is exceeded', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url)
+      if (href.includes(':generateContent')) {
+        return jsonResponse({
+          candidates: [
+            {
+              content: {
+                parts: [{ inlineData: { mimeType: 'image/png', data: pngB64 } }],
+              },
+            },
+          ],
+        })
+      }
+      return new Response('unexpected', { status: 500 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await generateImage(input, {
+      env: {
+        GEMINI_API_KEY: 'studio-key',
+        GEMINI_IMAGE_MODEL: 'gemini-2.5-flash-image',
+      },
+    })
+
+    expect(result.provider).toBe('gemini')
+    expect(result.mime).toBe('image/png')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-2.5-flash-image')
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('pollinations'))).toBe(false)
   })
 
   it('falls back to Pollinations when Google AI Studio fails', async () => {

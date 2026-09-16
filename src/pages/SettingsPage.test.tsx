@@ -25,4 +25,24 @@ describe('SettingsPage', () => {
     ).toBeTruthy()
     expect(screen.getByText(/Pollinations \(FLUX fallback\): anonymous flux \(active\)/)).toBeTruthy()
   })
+
+  it('shows quota exceeded notice when Gemini quota is exceeded', async () => {
+    const { fetchStatus } = await import('@/lib/api.ts')
+    vi.mocked(fetchStatus).mockResolvedValueOnce({
+      gemini: true,
+      geminiQuotaExceeded: true,
+      geminiQuotaResetInMs: 45000,
+      openrouter: true,
+      pollinations: false,
+      huggingface: false,
+      passphraseRequired: false,
+    })
+
+    render(<SettingsPage />)
+    expect(
+      await screen.findByText(
+        /Google AI Studio \(Gemini 2\.5 Flash \+ Imagen\): quota exceeded \(using fallback\)/,
+      ),
+    ).toBeTruthy()
+  })
 })

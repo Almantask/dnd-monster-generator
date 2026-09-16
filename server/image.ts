@@ -1,4 +1,5 @@
 import { IMAGEN_MODELS } from '../shared/aiModels.ts'
+import { isQuotaError, markGeminiQuotaExceeded } from './quota.ts'
 
 export const DEFAULT_IMAGEN_MODEL = 'imagen-3.0-generate-002'
 
@@ -276,6 +277,9 @@ export async function generateImage(
       const msg = `Google AI Studio: ${error instanceof Error ? error.message : String(error)}`
       console.warn(`[IMAGE] ${msg}`)
       errors.push(msg)
+      if (isQuotaError(undefined, msg)) {
+        markGeminiQuotaExceeded()
+      }
     }
   } else {
     console.log('[IMAGE] Provider 1/3: Skipping Google AI Studio (GEMINI_API_KEY not set)')
