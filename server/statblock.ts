@@ -25,6 +25,20 @@ import {
 export type StatblockRuntime = {
   env?: NodeJS.Dict<string>
   fetch?: typeof globalThis.fetch
+  sleep?: (ms: number) => Promise<void>
+}
+
+/** Google returns 503 "high demand" spikes that usually clear within seconds. */
+const GEMINI_TRANSIENT_STATUSES = new Set([500, 502, 503, 504])
+export const GEMINI_RETRY_DELAY_MS = 2_000
+
+class GeminiApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
 }
 
 function envOf(runtime?: StatblockRuntime) {
@@ -35,13 +49,30 @@ function fetchOf(runtime?: StatblockRuntime) {
   return runtime?.fetch ?? globalThis.fetch
 }
 
+function sleepOf(runtime?: StatblockRuntime) {
+  return runtime?.sleep ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)))
+}
+
 function extractJson(text: string): unknown {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text)
   const raw = fenced?.[1] ?? text
   const start = raw.indexOf('{')
-  const end = raw.lastIndexOf('}')
-  if (start === -1 || end === -1) throw new Error('No JSON object in model response')
-  return JSON.parse(raw.slice(start, end + 1)) as unknown
+  if (start === -1) throw new Error('No JSON object in model response')
+  // Parse only the first balanced object: Gemini 3.x sometimes appends a stray `}` after valid JSON.
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+    } else if (ch === '"') inString = true
+    else if (ch === '{') depth++
+    else if (ch === '}' && --depth === 0) return JSON.parse(raw.slice(start, i + 1)) as unknown
+  }
+  throw new Error('Unterminated JSON object in model response')
 }
 
 async function completeGemini(
@@ -87,22 +118,40 @@ async function completeGemini(
   if (!res.ok) {
     const errText = (await res.text()).slice(0, 300)
     console.warn(`[GEMINI] Model "${model}" failed (${res.status}) in ${duration}ms: ${errText}`)
-    throw new Error(`Gemini ${model} failed (${res.status}): ${errText.slice(0, 200)}`)
+    throw new GeminiApiError(`Gemini ${model} failed (${res.status}): ${errText.slice(0, 200)}`, res.status)
   }
   const data = (await res.json()) as {
     candidates?: Array<{
       content?: {
-        parts?: Array<{ text?: string }>
+        parts?: Array<{ text?: string; thought?: boolean }>
       }
     }>
   }
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text
+  const content = (data.candidates?.[0]?.content?.parts ?? [])
+    .filter((part) => !part.thought)
+    .map((part) => part.text ?? '')
+    .join('')
   if (!content) {
     console.warn(`[GEMINI] Model "${model}" returned no content in ${duration}ms`)
     throw new Error(`Gemini ${model} returned no content`)
   }
   console.log(`[GEMINI] Received response from "${model}" in ${duration}ms (${content.length} chars)`)
   return content
+}
+
+async function completeGeminiWithRetry(
+  model: string,
+  prompt: string,
+  runtime?: StatblockRuntime,
+): Promise<string> {
+  try {
+    return await completeGemini(model, prompt, runtime)
+  } catch (error) {
+    if (!(error instanceof GeminiApiError) || !GEMINI_TRANSIENT_STATUSES.has(error.status)) throw error
+    console.warn(`[GEMINI] Model "${model}" temporarily unavailable (${error.status}); retrying in ${GEMINI_RETRY_DELAY_MS}ms...`)
+    await sleepOf(runtime)(GEMINI_RETRY_DELAY_MS)
+    return completeGemini(model, prompt, runtime)
+  }
 }
 
 async function completeOpenRouter(
@@ -239,13 +288,13 @@ export async function generateStatblock(
       ...GEMINI_STATBLOCK_MODELS,
     ].filter((m, idx, arr) => arr.indexOf(m) === idx)
 
-    let anyQuotaExceeded = false
+    let quotaFailures = 0
 
     for (let i = 0; i < geminiModels.length; i++) {
       const model = geminiModels[i]!
       console.log(`[STATBLOCK] [${i + 1}/${geminiModels.length}] Trying Google AI Studio Gemini model: "${model}"`)
       try {
-        const content = await completeGemini(model, prompt, runtime)
+        const content = await completeGeminiWithRetry(model, prompt, runtime)
         const parsed = extractJson(content)
         const monster = generatedMonsterSchema.parse(parsed)
         console.log(`[STATBLOCK] ✓ Validated schema successfully with Gemini model: "${model}"`)
@@ -254,14 +303,14 @@ export async function generateStatblock(
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error)
         console.warn(`[STATBLOCK] Gemini model "${model}" failed: ${msg}`)
-        if (isQuotaError(undefined, msg)) {
-          anyQuotaExceeded = true
-        }
+        const status = error instanceof GeminiApiError ? error.status : undefined
+        if (isQuotaError(status, msg)) quotaFailures++
       }
     }
 
-    if (anyQuotaExceeded) {
-      console.warn('[STATBLOCK] Gemini quota exceeded. Marking quota cooldown...')
+    // Each model has its own quota; only skip Gemini on later requests when every model is exhausted.
+    if (quotaFailures === geminiModels.length) {
+      console.warn('[STATBLOCK] Gemini quota exceeded on every model. Marking quota cooldown...')
       markGeminiQuotaExceeded()
     }
     console.warn('[STATBLOCK] All Gemini models failed. Checking OpenRouter fallback...')

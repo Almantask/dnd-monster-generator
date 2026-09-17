@@ -46,6 +46,14 @@ export function getGeminiQuotaStatus(now = Date.now()): {
   return { exceeded, resetInMs }
 }
 
+/**
+ * Google answers 429 with `free_tier ... limit: 0` when the model has no free quota at all
+ * (e.g. every image model). Waiting never helps; the project needs billing enabled.
+ */
+export function isFreeTierZeroQuota(status: number, errorText: string): boolean {
+  return status === 429 && /free_?tier/i.test(errorText) && /limit: 0\b/.test(errorText)
+}
+
 export function isQuotaError(status?: number, errorText?: string): boolean {
   if (status === 429) return true
   if (status === 403 && errorText && /quota|resource_exhausted/i.test(errorText)) return true

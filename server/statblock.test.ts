@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { generateStatblock } from './statblock.ts'
-import { clearGeminiQuota, markGeminiQuotaExceeded } from './quota.ts'
+import { GEMINI_RETRY_DELAY_MS, generateStatblock } from './statblock.ts'
+import { clearGeminiQuota, isGeminiQuotaExceeded, markGeminiQuotaExceeded } from './quota.ts'
 import type { Difficulty } from '../shared/taxonomies.ts'
 
 const validMonster = {
@@ -73,7 +73,7 @@ describe('generateStatblock', () => {
     clearGeminiQuota()
   })
 
-  it('uses Google AI Studio Gemini 2.5 Flash when GEMINI_API_KEY is present', async () => {
+  it('uses Google AI Studio Gemini 3.5 Flash when GEMINI_API_KEY is present', async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       const href = String(url)
       if (href.includes('generativelanguage.googleapis.com')) {
@@ -203,6 +203,125 @@ describe('generateStatblock', () => {
       String(call[0]).includes('openrouter.ai'),
     )
     expect(calledOpenRouter).toBe(false)
+  })
+
+  it('keeps a Gemini statblock whose JSON is followed by a stray brace or split across parts', async () => {
+    const json = JSON.stringify(validMonster, null, 2)
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('generativelanguage.googleapis.com')) {
+        return jsonResponse({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { text: 'planning the monster', thought: true },
+                  { text: json.slice(0, 100) },
+                  { text: `${json.slice(100)}\n}` },
+                ],
+              },
+            },
+          ],
+        })
+      }
+      return jsonResponse({ choices: [{ message: { content: JSON.stringify(validMonster) } }] })
+    })
+
+    const result = await generateStatblock(input, {
+      env: { GEMINI_API_KEY: 'test-gemini-key', OPENROUTER_API_KEY: 'test-openrouter-key' },
+      fetch: fetchMock,
+    })
+
+    expect(result.provider).toBe('gemini')
+    expect(result.model).toBe('gemini-3.5-flash')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a Gemini model after a temporary 503 instead of falling back to OpenRouter', async () => {
+    let geminiAttempts = 0
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url)
+      if (href.includes('generativelanguage.googleapis.com')) {
+        geminiAttempts++
+        if (geminiAttempts === 1) {
+          return new Response('This model is currently experiencing high demand.', { status: 503 })
+        }
+        return jsonResponse({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(validMonster) }] } }],
+        })
+      }
+      return jsonResponse({ choices: [{ message: { content: JSON.stringify(validMonster) } }] })
+    })
+    const sleep = vi.fn(async () => {})
+
+    const result = await generateStatblock(input, {
+      env: {
+        GEMINI_API_KEY: 'test-gemini-key',
+        OPENROUTER_API_KEY: 'test-openrouter-key',
+      },
+      fetch: fetchMock,
+      sleep,
+    })
+
+    expect(result.provider).toBe('gemini')
+    expect(result.model).toBe('gemini-3.5-flash')
+    expect(sleep).toHaveBeenCalledWith(GEMINI_RETRY_DELAY_MS)
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]))
+    expect(urls).toHaveLength(2)
+    expect(urls.every((url) => url.includes('/models/gemini-3.5-flash:'))).toBe(true)
+  })
+
+  it('does not skip Gemini on the next request when only some Gemini models hit quota', async () => {
+    const env = {
+      GEMINI_API_KEY: 'test-gemini-key',
+      OPENROUTER_API_KEY: 'test-openrouter-key',
+    }
+    const openRouterOk = () =>
+      jsonResponse({ choices: [{ message: { content: JSON.stringify(validMonster) } }] })
+    const firstFetch = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url)
+      if (href.includes('/models/gemini-3.5-flash:')) {
+        return new Response('Quota exceeded (RESOURCE_EXHAUSTED)', { status: 429 })
+      }
+      if (href.includes('generativelanguage.googleapis.com')) {
+        return new Response('high demand', { status: 503 })
+      }
+      return openRouterOk()
+    })
+
+    const first = await generateStatblock(input, { env, fetch: firstFetch, sleep: async () => {} })
+
+    expect(first.provider).toBe('openrouter')
+    expect(isGeminiQuotaExceeded()).toBe(false)
+
+    const secondFetch = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('generativelanguage.googleapis.com')) {
+        return jsonResponse({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(validMonster) }] } }],
+        })
+      }
+      return openRouterOk()
+    })
+
+    const second = await generateStatblock(input, { env, fetch: secondFetch })
+
+    expect(second.provider).toBe('gemini')
+  })
+
+  it('never calls Gemini models that Google has retired for new keys', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('generativelanguage.googleapis.com')) {
+        return new Response('Quota exceeded (RESOURCE_EXHAUSTED)', { status: 429 })
+      }
+      return jsonResponse({ choices: [{ message: { content: JSON.stringify(validMonster) } }] })
+    })
+
+    await generateStatblock(input, {
+      env: { GEMINI_API_KEY: 'test-gemini-key', OPENROUTER_API_KEY: 'test-openrouter-key' },
+      fetch: fetchMock,
+    })
+
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]))
+    expect(urls.some((url) => /\/models\/gemini-2\.[05]-flash:/.test(url))).toBe(false)
   })
 
   it('falls back to OpenRouter only after Gemini quota is exceeded across all Gemini models (429)', async () => {

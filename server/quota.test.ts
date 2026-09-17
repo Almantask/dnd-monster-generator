@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   clearGeminiQuota,
   getGeminiQuotaStatus,
+  isFreeTierZeroQuota,
   isGeminiQuotaExceeded,
   isQuotaError,
   markGeminiQuotaExceeded,
@@ -47,5 +48,15 @@ describe('server/quota', () => {
     expect(isQuotaError(403, 'RESOURCE_EXHAUSTED: quota exceeded')).toBe(true)
     expect(isQuotaError(500, 'Gemini failed (429): Quota exceeded')).toBe(true)
     expect(isQuotaError(500, 'Some other network failure')).toBe(false)
+  })
+
+  it('identifies free-tier limit-0 quota errors that need billing rather than a cooldown', () => {
+    const zeroLimit =
+      '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-3.1-flash-image'
+    const dailyLimit =
+      '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.5-flash'
+    expect(isFreeTierZeroQuota(429, zeroLimit)).toBe(true)
+    expect(isFreeTierZeroQuota(429, dailyLimit)).toBe(false)
+    expect(isFreeTierZeroQuota(404, zeroLimit)).toBe(false)
   })
 })
