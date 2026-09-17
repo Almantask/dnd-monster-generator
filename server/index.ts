@@ -36,8 +36,8 @@ app.get('/api/status', (c) => {
     geminiQuotaExceeded: quota.exceeded,
     geminiQuotaResetInMs: quota.resetInMs,
     openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+    cloudflare: Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN),
     pollinations: Boolean(process.env.POLLINATIONS_API_KEY),
-    huggingface: Boolean(process.env.HF_TOKEN),
     passphraseRequired: Boolean(process.env.GENERATION_PASSPHRASE),
   }
   console.log('[API] GET /api/status - Providers configured:', status)
@@ -165,8 +165,8 @@ serve({ fetch: app.fetch, port }, () => {
   console.log(`  Port: http://localhost:${port}`)
   console.log(`  - GEMINI_API_KEY:       ${process.env.GEMINI_API_KEY ? '✓ Set' : '✗ Not set'}`)
   console.log(`  - OPENROUTER_API_KEY:   ${process.env.OPENROUTER_API_KEY ? '✓ Set' : '✗ Not set'}`)
-  console.log(`  - POLLINATIONS_API_KEY: ${process.env.POLLINATIONS_API_KEY ? '✓ Set' : '✗ Not set (public tier)'}`)
-  console.log(`  - HF_TOKEN:             ${process.env.HF_TOKEN ? '✓ Set' : '✗ Not set'}`)
+  console.log(`  - CLOUDFLARE (Workers AI): ${process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN ? '✓ Set' : '✗ Not set (needs CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN)'}`)
+  console.log(`  - POLLINATIONS_API_KEY: ${process.env.POLLINATIONS_API_KEY ? '✓ Set' : '✗ Not set (anonymous legacy endpoint)'}`)
   console.log(`  - PASSPHRASE:           ${process.env.GENERATION_PASSPHRASE ? '✓ Required' : '✗ None (open)'}`)
   console.log(`==============================================\n`)
 })

@@ -10,8 +10,8 @@ export function SettingsPage() {
     geminiQuotaExceeded?: boolean
     geminiQuotaResetInMs?: number
     openrouter: boolean
+    cloudflare: boolean
     pollinations: boolean
-    huggingface: boolean
     passphraseRequired: boolean
   } | null>(null)
   const [saved, setSaved] = useState(false)
@@ -59,7 +59,7 @@ export function SettingsPage() {
       {status ? (
         <ul className="text-sm">
           <li>
-            Google AI Studio (Gemini 2.5 Flash + Imagen):{' '}
+            Google AI Studio (Gemini Flash + Gemini images):{' '}
             {status.gemini
               ? status.geminiQuotaExceeded
                 ? 'quota exceeded (using fallback)'
@@ -67,8 +67,8 @@ export function SettingsPage() {
               : 'not set'}
           </li>
           <li>OpenRouter (fallback): {status.openrouter ? 'configured' : 'not set'}</li>
-          <li>Pollinations (FLUX fallback): {status.pollinations ? 'key present' : 'anonymous flux (active)'}</li>
-          <li>Hugging Face: {status.huggingface ? 'configured' : 'not set'}</li>
+          <li>Cloudflare Workers AI (free FLUX): {status.cloudflare ? 'configured' : 'not set'}</li>
+          <li>Pollinations (FLUX fallback): {status.pollinations ? 'secret key (gen API)' : 'anonymous (legacy endpoint)'}</li>
           <li>Passphrase required: {status.passphraseRequired ? 'yes' : 'no'}</li>
         </ul>
       ) : null}

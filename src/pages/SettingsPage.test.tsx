@@ -7,8 +7,8 @@ vi.mock('@/lib/api.ts', () => ({
   fetchStatus: vi.fn(async () => ({
     gemini: true,
     openrouter: true,
+    cloudflare: true,
     pollinations: false,
-    huggingface: false,
     passphraseRequired: false,
   })),
 }))
@@ -21,9 +21,10 @@ describe('SettingsPage', () => {
   it('shows Google AI Studio as configured provider', async () => {
     render(<SettingsPage />)
     expect(
-      await screen.findByText(/Google AI Studio \(Gemini 2\.5 Flash \+ Imagen\): configured/),
+      await screen.findByText(/Google AI Studio \(Gemini Flash \+ Gemini images\): configured/),
     ).toBeTruthy()
-    expect(screen.getByText(/Pollinations \(FLUX fallback\): anonymous flux \(active\)/)).toBeTruthy()
+    expect(screen.getByText(/Cloudflare Workers AI \(free FLUX\): configured/)).toBeTruthy()
+    expect(screen.getByText(/Pollinations \(FLUX fallback\): anonymous \(legacy endpoint\)/)).toBeTruthy()
   })
 
   it('shows quota exceeded notice when Gemini quota is exceeded', async () => {
@@ -33,15 +34,15 @@ describe('SettingsPage', () => {
       geminiQuotaExceeded: true,
       geminiQuotaResetInMs: 45000,
       openrouter: true,
+      cloudflare: false,
       pollinations: false,
-      huggingface: false,
       passphraseRequired: false,
     })
 
     render(<SettingsPage />)
     expect(
       await screen.findByText(
-        /Google AI Studio \(Gemini 2\.5 Flash \+ Imagen\): quota exceeded \(using fallback\)/,
+        /Google AI Studio \(Gemini Flash \+ Gemini images\): quota exceeded \(using fallback\)/,
       ),
     ).toBeTruthy()
   })
