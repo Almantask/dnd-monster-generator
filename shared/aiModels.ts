@@ -1,10 +1,14 @@
-// gemini-2.5-flash and gemini-2.0-flash return 404 ("no longer available") for new AI Studio keys.
+/**
+ * Strongest reasoning model first; statblocks need 5e rules arithmetic to hold together.
+ * Pro models are paid-tier only (free keys get 429), so set GEMINI_STATBLOCK_MODEL=gemini-3.1-pro-preview
+ * once the project has billing. gemini-2.5-flash and gemini-2.0-flash 404 for new AI Studio keys.
+ */
 export const GEMINI_STATBLOCK_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
   'gemini-3.5-flash',
   'gemini-flash-latest',
-  'gemini-3.6-flash',
-  'gemini-3.7-flash',
-  'gemini-3.8-flash',
   'gemini-3.5-flash-lite',
 ] as const
 

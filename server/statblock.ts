@@ -26,11 +26,22 @@ export type StatblockRuntime = {
   env?: NodeJS.Dict<string>
   fetch?: typeof globalThis.fetch
   sleep?: (ms: number) => Promise<void>
+  now?: () => number
 }
 
 /** Google returns 503 "high demand" spikes that usually clear within seconds. */
 const GEMINI_TRANSIENT_STATUSES = new Set([500, 502, 503, 504])
 export const GEMINI_RETRY_DELAY_MS = 2_000
+/**
+ * Gemini 3.x models think dynamically by default (measured: ~1,500 thought tokens on a statblock
+ * prompt). An explicit thinkingConfig budget only caps that, so none is sent.
+ */
+export const GEMINI_REQUEST_TIMEOUT_MS = 45_000
+/**
+ * Ceiling for the whole Gemini phase. Six models, each with a retry, can otherwise outlast
+ * Cloud Run's 120s request timeout and leave no room for the OpenRouter fallback.
+ */
+export const GEMINI_PHASE_BUDGET_MS = 75_000
 
 class GeminiApiError extends Error {
   constructor(
@@ -47,6 +58,10 @@ function envOf(runtime?: StatblockRuntime) {
 
 function fetchOf(runtime?: StatblockRuntime) {
   return runtime?.fetch ?? globalThis.fetch
+}
+
+function nowOf(runtime?: StatblockRuntime) {
+  return runtime?.now ?? Date.now
 }
 
 function sleepOf(runtime?: StatblockRuntime) {
@@ -79,6 +94,7 @@ async function completeGemini(
   model: string,
   prompt: string,
   runtime?: StatblockRuntime,
+  timeoutMs = GEMINI_REQUEST_TIMEOUT_MS,
 ): Promise<string> {
   const key = envOf(runtime).GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY is not set')
@@ -111,7 +127,7 @@ async function completeGemini(
           responseMimeType: 'application/json',
         },
       }),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(timeoutMs),
     },
   )
   const duration = Date.now() - start
@@ -142,15 +158,19 @@ async function completeGemini(
 async function completeGeminiWithRetry(
   model: string,
   prompt: string,
-  runtime?: StatblockRuntime,
+  runtime: StatblockRuntime | undefined,
+  timeoutMs: number,
+  /** Only the last model retries itself; otherwise the next model is the faster retry. */
+  retryTransient: boolean,
 ): Promise<string> {
   try {
-    return await completeGemini(model, prompt, runtime)
+    return await completeGemini(model, prompt, runtime, timeoutMs)
   } catch (error) {
-    if (!(error instanceof GeminiApiError) || !GEMINI_TRANSIENT_STATUSES.has(error.status)) throw error
-    console.warn(`[GEMINI] Model "${model}" temporarily unavailable (${error.status}); retrying in ${GEMINI_RETRY_DELAY_MS}ms...`)
+    const transient = error instanceof GeminiApiError && GEMINI_TRANSIENT_STATUSES.has(error.status)
+    if (!transient || !retryTransient) throw error
+    console.warn(`[GEMINI] Model "${model}" temporarily unavailable; retrying in ${GEMINI_RETRY_DELAY_MS}ms...`)
     await sleepOf(runtime)(GEMINI_RETRY_DELAY_MS)
-    return completeGemini(model, prompt, runtime)
+    return completeGemini(model, prompt, runtime, timeoutMs)
   }
 }
 
@@ -246,6 +266,16 @@ function buildPrompt(input: {
 Target encounter: party of ${input.partySize} level-${input.characterLevel} characters, difficulty ${input.difficulty} (XP budget ${budget}).
 Suggested CR ${cr}. Typical stats for that CR: AC ${cal.ac}, HP ${cal.hp}, attack bonus +${cal.attack}, damage/round ${cal.damage}, save DC ${cal.saveDc}.
 Action text must use 5e phrasing, e.g. "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 12 (2d6 + 3) slashing damage."
+
+Work the arithmetic through before answering; every number below must agree:
+- Ability modifier = floor((score - 10) / 2).
+- Proficiency bonus by CR: +2 (CR 0-4), +3 (5-8), +4 (9-12), +5 (13-16), +6 (17-20).
+- Each save and skill = the ability modifier + proficiency bonus.
+- Attack bonus = the attacking ability modifier + proficiency bonus, and every "Hit:" average matches its dice (d6 avg 3.5, d8 4.5, d10 5.5, d12 6.5) plus the damage modifier.
+- Save DC = 8 + proficiency bonus + the relevant ability modifier.
+- hp = the hit_dice average (d8 4.5, d10 5.5, d12 6.5 per die) + CON modifier per die, and hit_dice size matches the creature's size (Small d6, Medium d8, Large d10, Huge d12).
+- Passive Perception = 10 + the Perception modifier, and senses must match any blindsight/darkvision the lore implies.
+- Traits, actions, spells and locomotion must fit the creature's type, size and habitat, and its damage output per round should land near the CR target above.
 Do not use the word "none"; use empty arrays or null.
 Legendary actions only if CR is 5+ and the description warrants a boss.
 
@@ -289,12 +319,27 @@ export async function generateStatblock(
     ].filter((m, idx, arr) => arr.indexOf(m) === idx)
 
     let quotaFailures = 0
+    let attempted = 0
+    const now = nowOf(runtime)
+    const deadline = now() + GEMINI_PHASE_BUDGET_MS
 
     for (let i = 0; i < geminiModels.length; i++) {
       const model = geminiModels[i]!
+      const remaining = deadline - now()
+      if (attempted > 0 && remaining < 5_000) {
+        console.warn(`[STATBLOCK] Gemini time budget spent after ${attempted} model(s); moving on.`)
+        break
+      }
+      attempted++
       console.log(`[STATBLOCK] [${i + 1}/${geminiModels.length}] Trying Google AI Studio Gemini model: "${model}"`)
       try {
-        const content = await completeGeminiWithRetry(model, prompt, runtime)
+        const content = await completeGeminiWithRetry(
+          model,
+          prompt,
+          runtime,
+          Math.min(GEMINI_REQUEST_TIMEOUT_MS, Math.max(remaining, 5_000)),
+          i === geminiModels.length - 1,
+        )
         const parsed = extractJson(content)
         const monster = generatedMonsterSchema.parse(parsed)
         console.log(`[STATBLOCK] ✓ Validated schema successfully with Gemini model: "${model}"`)
@@ -309,7 +354,7 @@ export async function generateStatblock(
     }
 
     // Each model has its own quota; only skip Gemini on later requests when every model is exhausted.
-    if (quotaFailures === geminiModels.length) {
+    if (attempted > 0 && quotaFailures === attempted) {
       console.warn('[STATBLOCK] Gemini quota exceeded on every model. Marking quota cooldown...')
       markGeminiQuotaExceeded()
     }

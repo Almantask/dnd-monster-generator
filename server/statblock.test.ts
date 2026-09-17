@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { GEMINI_RETRY_DELAY_MS, generateStatblock } from './statblock.ts'
+import { GEMINI_PHASE_BUDGET_MS, GEMINI_RETRY_DELAY_MS, generateStatblock } from './statblock.ts'
 import { clearGeminiQuota, isGeminiQuotaExceeded, markGeminiQuotaExceeded } from './quota.ts'
 import type { Difficulty } from '../shared/taxonomies.ts'
 
@@ -73,7 +73,7 @@ describe('generateStatblock', () => {
     clearGeminiQuota()
   })
 
-  it('uses Google AI Studio Gemini 3.5 Flash when GEMINI_API_KEY is present', async () => {
+  it('uses the strongest Google AI Studio Gemini model when GEMINI_API_KEY is present', async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       const href = String(url)
       if (href.includes('generativelanguage.googleapis.com')) {
@@ -95,7 +95,52 @@ describe('generateStatblock', () => {
 
     expect(result.provider).toBe('gemini')
     expect(result.monster.name).toBe('Cinder Drake')
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.5-flash')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.8-flash')
+  })
+
+  it('sends the 5e arithmetic rules and leaves Gemini thinking uncapped', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
+      if (String(url).includes('generativelanguage.googleapis.com')) {
+        return jsonResponse({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(validMonster) }] } }],
+        })
+      }
+      return new Response('unexpected', { status: 500 })
+    })
+
+    await generateStatblock(input, { env: { GEMINI_API_KEY: 'test-gemini-key' }, fetch: fetchMock })
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    // An explicit budget caps dynamic thinking, so the request must not set one.
+    expect(body.generationConfig.thinkingConfig).toBeUndefined()
+    const sentPrompt = String(body.contents[0].parts[0].text)
+    expect(sentPrompt).toContain('Proficiency bonus by CR')
+    expect(sentPrompt).toContain('Save DC = 8 + proficiency bonus')
+  })
+
+  it('stops trying Gemini models once the phase time budget is spent', async () => {
+    let clock = 0
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('generativelanguage.googleapis.com')) {
+        clock += GEMINI_PHASE_BUDGET_MS // a slow model eats the whole budget
+        return new Response('high demand', { status: 503 })
+      }
+      return jsonResponse({ choices: [{ message: { content: JSON.stringify(validMonster) } }] })
+    })
+
+    const result = await generateStatblock(input, {
+      env: { GEMINI_API_KEY: 'test-gemini-key', OPENROUTER_API_KEY: 'test-openrouter-key' },
+      fetch: fetchMock,
+      sleep: async () => {},
+      now: () => clock,
+    })
+
+    expect(result.provider).toBe('openrouter')
+    // One slow model spends the budget; the remaining five are skipped.
+    const geminiUrls = fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.includes('generativelanguage.googleapis.com'))
+    expect(geminiUrls).toHaveLength(1)
   })
 
   it('falls back to OpenRouter when GEMINI_API_KEY is not set but OPENROUTER_API_KEY is', async () => {
@@ -151,11 +196,11 @@ describe('generateStatblock', () => {
     })
 
     expect(result.provider).toBe('gemini')
-    expect(result.model).toBe('gemini-3.5-flash')
+    expect(result.model).toBe('gemini-3.8-flash')
     expect(result.monster.name).toBe('Cinder Drake')
     // Verify Gemini was called
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('generativelanguage.googleapis.com')
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.5-flash')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.8-flash')
     // Verify OpenRouter was NOT called because Gemini quota was not exceeded
     const calledOpenRouter = fetchMock.mock.calls.some((call) =>
       String(call[0]).includes('openrouter.ai'),
@@ -166,10 +211,10 @@ describe('generateStatblock', () => {
   it('tries next Gemini model before falling back to OpenRouter when primary Gemini model hits quota limit (429)', async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       const href = String(url)
-      if (href.includes('gemini-3.5-flash')) {
+      if (href.includes('gemini-3.8-flash')) {
         return new Response('Quota exceeded (RESOURCE_EXHAUSTED)', { status: 429 })
       }
-      if (href.includes('gemini-flash-latest')) {
+      if (href.includes('gemini-3.7-flash')) {
         return jsonResponse({
           candidates: [
             {
@@ -192,12 +237,12 @@ describe('generateStatblock', () => {
     })
 
     expect(result.provider).toBe('gemini')
-    expect(result.model).toBe('gemini-flash-latest')
+    expect(result.model).toBe('gemini-3.7-flash')
     expect(result.monster.name).toBe('Cinder Drake')
     // Primary Gemini was attempted first and failed with quota limit
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.5-flash')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.8-flash')
     // Secondary Gemini was attempted and succeeded before falling back to OpenRouter
-    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('gemini-flash-latest')
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('gemini-3.7-flash')
     // OpenRouter was NOT called because a Gemini model succeeded
     const calledOpenRouter = fetchMock.mock.calls.some((call) =>
       String(call[0]).includes('openrouter.ai'),
@@ -232,19 +277,17 @@ describe('generateStatblock', () => {
     })
 
     expect(result.provider).toBe('gemini')
-    expect(result.model).toBe('gemini-3.5-flash')
+    expect(result.model).toBe('gemini-3.8-flash')
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('retries a Gemini model after a temporary 503 instead of falling back to OpenRouter', async () => {
-    let geminiAttempts = 0
+  it('moves to the next Gemini model on a temporary 503 instead of falling back to OpenRouter', async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       const href = String(url)
+      if (href.includes('/models/gemini-3.8-flash:')) {
+        return new Response('This model is currently experiencing high demand.', { status: 503 })
+      }
       if (href.includes('generativelanguage.googleapis.com')) {
-        geminiAttempts++
-        if (geminiAttempts === 1) {
-          return new Response('This model is currently experiencing high demand.', { status: 503 })
-        }
         return jsonResponse({
           candidates: [{ content: { parts: [{ text: JSON.stringify(validMonster) }] } }],
         })
@@ -254,20 +297,48 @@ describe('generateStatblock', () => {
     const sleep = vi.fn(async () => {})
 
     const result = await generateStatblock(input, {
-      env: {
-        GEMINI_API_KEY: 'test-gemini-key',
-        OPENROUTER_API_KEY: 'test-openrouter-key',
-      },
+      env: { GEMINI_API_KEY: 'test-gemini-key', OPENROUTER_API_KEY: 'test-openrouter-key' },
       fetch: fetchMock,
       sleep,
     })
 
     expect(result.provider).toBe('gemini')
-    expect(result.model).toBe('gemini-3.5-flash')
+    expect(result.model).toBe('gemini-3.7-flash')
+    // A busy model is abandoned at once; the next model is the faster retry.
+    expect(sleep).not.toHaveBeenCalled()
+    expect(fetchMock.mock.calls.map((call) => String(call[0]))).toHaveLength(2)
+  })
+
+  it('retries the last Gemini model once before giving up on Gemini', async () => {
+    let lastModelAttempts = 0
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url)
+      if (href.includes('/models/gemini-3.5-flash-lite:')) {
+        lastModelAttempts++
+        if (lastModelAttempts === 1) {
+          return new Response('high demand', { status: 503 })
+        }
+        return jsonResponse({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(validMonster) }] } }],
+        })
+      }
+      if (href.includes('generativelanguage.googleapis.com')) {
+        return new Response('high demand', { status: 503 })
+      }
+      return jsonResponse({ choices: [{ message: { content: JSON.stringify(validMonster) } }] })
+    })
+    const sleep = vi.fn(async () => {})
+
+    const result = await generateStatblock(input, {
+      env: { GEMINI_API_KEY: 'test-gemini-key', OPENROUTER_API_KEY: 'test-openrouter-key' },
+      fetch: fetchMock,
+      sleep,
+    })
+
+    expect(result.provider).toBe('gemini')
+    expect(result.model).toBe('gemini-3.5-flash-lite')
+    expect(lastModelAttempts).toBe(2)
     expect(sleep).toHaveBeenCalledWith(GEMINI_RETRY_DELAY_MS)
-    const urls = fetchMock.mock.calls.map((call) => String(call[0]))
-    expect(urls).toHaveLength(2)
-    expect(urls.every((url) => url.includes('/models/gemini-3.5-flash:'))).toBe(true)
   })
 
   it('does not skip Gemini on the next request when only some Gemini models hit quota', async () => {
@@ -279,7 +350,7 @@ describe('generateStatblock', () => {
       jsonResponse({ choices: [{ message: { content: JSON.stringify(validMonster) } }] })
     const firstFetch = vi.fn(async (url: string | URL | Request) => {
       const href = String(url)
-      if (href.includes('/models/gemini-3.5-flash:')) {
+      if (href.includes('/models/gemini-3.8-flash:')) {
         return new Response('Quota exceeded (RESOURCE_EXHAUSTED)', { status: 429 })
       }
       if (href.includes('generativelanguage.googleapis.com')) {
@@ -488,7 +559,7 @@ describe('generateStatblock', () => {
 
     expect(result.provider).toBe('gemini')
     expect(result.monster.name).toBe('Cinder Drake')
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.5-flash')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.8-flash')
     const calledOpenRouter = fetchMock.mock.calls.some((call) =>
       String(call[0]).includes('openrouter.ai'),
     )
