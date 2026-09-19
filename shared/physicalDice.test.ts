@@ -85,4 +85,11 @@ describe('resultFromPhysics', () => {
     expect(result.total).toBe(12)
     expect(result.expression).toBe(`Hit dice: ${formatDice(plan)}`)
   })
+
+  it('rolls any die the physics failed to read instead of shortening the total', () => {
+    const plan: PlannedRoll = { id: 'storm', count: 3, sides: 6, bonus: 2 }
+    const result = resultFromPhysics(plan, [4], () => 0.5)
+    expect(result.dice).toEqual([4, 4, 4])
+    expect(result.total).toBe(14)
+  })
 })

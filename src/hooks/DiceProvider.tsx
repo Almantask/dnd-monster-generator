@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { roll, type DiceExpr, type RollResult } from '@shared/dice.ts'
 import {
   buildPhysicsGroups,
@@ -6,10 +15,28 @@ import {
   type PhysicsSettleResult,
   type PlannedRoll,
 } from '@shared/physicalDice.ts'
-import { DicePhysics } from '@/components/dice/DicePhysics.tsx'
-import { DiceContext } from './useDice.ts'
+import { DiceContext, type TrayRoll } from './useDice.ts'
 
 const OVERLAY_LINGER_MS = 3000
+
+/**
+ * three.js, react-three-fiber and Rapier's inlined WASM are most of the app's
+ * JavaScript, yet only a dice throw needs them. Splitting them into their own
+ * chunk keeps them off the first paint; the idle prefetch below still has them
+ * ready long before most people click a roll.
+ */
+const loadDicePhysics = () => import('@/components/dice/DicePhysics.tsx')
+const DicePhysics = lazy(() => loadDicePhysics().then((m) => ({ default: m.DicePhysics })))
+
+function prefetchWhenIdle(): () => void {
+  const warm = () => void loadDicePhysics()
+  if (typeof window.requestIdleCallback === 'function') {
+    const id = window.requestIdleCallback(warm, { timeout: 4000 })
+    return () => window.cancelIdleCallback(id)
+  }
+  const id = window.setTimeout(warm, 1500)
+  return () => window.clearTimeout(id)
+}
 
 function mathResult(plan: PlannedRoll): RollResult {
   const result = roll({ count: plan.count, sides: plan.sides, bonus: plan.bonus })
@@ -18,7 +45,7 @@ function mathResult(plan: PlannedRoll): RollResult {
 }
 
 export function DiceProvider({ children }: { children: ReactNode }) {
-  const [rolls, setRolls] = useState<RollResult[]>([])
+  const [rolls, setRolls] = useState<TrayRoll[]>([])
   const [pending, setPending] = useState<PlannedRoll[] | null>(null)
   const [banner, setBanner] = useState<RollResult[] | null>(null)
   const [throwId, setThrowId] = useState(0)
@@ -29,8 +56,10 @@ export function DiceProvider({ children }: { children: ReactNode }) {
   const seq = useRef(0)
   const lingerTimer = useRef<number | undefined>(undefined)
 
+  const rollId = useRef(0)
+
   const push = useCallback((result: RollResult) => {
-    setRolls((current) => [result, ...current].slice(0, 12))
+    setRolls((current) => [{ ...result, id: ++rollId.current }, ...current].slice(0, 12))
   }, [])
 
   const dismissOverlay = useCallback(() => {
@@ -126,6 +155,8 @@ export function DiceProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  useEffect(prefetchWhenIdle, [])
+
   const value = useMemo(
     () => ({ rolls, push, rollExpr, rollCheck, clear }),
     [rolls, push, rollExpr, rollCheck, clear],
@@ -141,16 +172,24 @@ export function DiceProvider({ children }: { children: ReactNode }) {
           role="dialog"
           aria-label="Dice roll"
           aria-modal="true"
-          className="fixed inset-0 z-[80] bg-ink/45"
+          className="anim-fade fixed inset-0 z-[80] bg-ink/45"
           onClick={banner ? dismissOverlay : undefined}
         >
-          <DicePhysics key={throwId} groups={groups} onComplete={completeThrow} />
+          <Suspense
+            fallback={
+              <p className="font-display text-parchment absolute inset-x-0 top-1/2 text-center tracking-widest uppercase">
+                Readying the dice…
+              </p>
+            }
+          >
+            <DicePhysics key={throwId} groups={groups} onComplete={completeThrow} />
+          </Suspense>
           {banner ? (
             <ul className="pointer-events-none absolute inset-x-0 bottom-10 z-[82] mx-auto flex max-w-xl flex-col items-center gap-1 px-4 text-center">
               {banner.map((item) => (
                 <li
                   key={item.expression}
-                  className="rounded border border-oxblood/50 bg-statblock/95 px-3 py-1 font-display text-oxblood shadow-md"
+                  className="anim-pop roll-chip roll-chip-latest font-display text-oxblood px-3 py-1"
                 >
                   {item.expression} <strong>{item.total}</strong>
                   <span className="text-ink/70"> [{item.dice.join(', ')}]</span>
