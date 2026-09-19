@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { FileJson, Flame, LoaderCircle } from 'lucide-react'
 import { DIFFICULTIES, type Difficulty } from '@shared/taxonomies.ts'
 import { withIdentity } from '@shared/importAdapter.ts'
 import { dataUrlToBlob, generateImage, generateStatblock } from '@/lib/api.ts'
@@ -20,7 +21,7 @@ export function ConjurePage() {
     <>
       {busy !== 'idle' && <ConjureProgressModal busy={busy} name={name.trim()} />}
       <form
-        className="mx-auto max-w-2xl space-y-4 rounded border border-oxblood/40 bg-statblock p-6"
+        className="panel mx-auto max-w-2xl space-y-5 p-6"
         onSubmit={async (e) => {
           e.preventDefault()
           setError('')
@@ -56,28 +57,41 @@ export function ConjurePage() {
           }
         }}
       >
-        <h2 className="font-display text-2xl text-oxblood uppercase">Conjure a monster</h2>
-        <p className="italic text-ink/70">
-          Name the creature, set the party it should threaten, and describe its look, weapons, and ways. (Have JSON already?{' '}
-          <Link to="/scribe?mode=json" className="text-oxblood underline hover:text-oxblood-dark">
-            Paste JSON statblock
-          </Link>
-          )
-        </p>
+        <div>
+          <h2 className="section-heading flex items-center gap-2 text-2xl">
+            <Flame className="text-oxblood/70 size-5" aria-hidden="true" />
+            Conjure a monster
+          </h2>
+          <hr className="stat-rule mt-2 mb-3" />
+          <p className="text-ink/70 italic">
+            Name the creature, set the party it should threaten, and describe its look, weapons, and
+            ways.
+          </p>
+          <p className="mt-2 text-sm">
+            <span className="text-ink/60">Have JSON already? </span>
+            <Link to="/scribe?mode=json" className="link-quill inline-flex items-center gap-1">
+              <FileJson className="size-3.5" aria-hidden="true" />
+              Paste JSON statblock
+            </Link>
+          </p>
+        </div>
+
         <label className="block">
-          <span className="font-display text-sm uppercase text-oxblood">Name</span>
+          <span className="field-label mb-1">Name</span>
           <input
             required
-            className="mt-1 w-full rounded border border-oxblood/40 bg-parchment px-3 py-2"
+            className="field"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            placeholder="Ashfang, the Cinder Drake"
           />
         </label>
+
         <div className="grid gap-3 sm:grid-cols-3">
-          <label>
-            <span className="font-display text-sm uppercase text-oxblood">Party size</span>
+          <label className="block">
+            <span className="field-label mb-1">Party size</span>
             <select
-              className="mt-1 w-full rounded border border-oxblood/40 bg-parchment px-3 py-2"
+              className="field"
               value={partySize}
               onChange={(e) => setPartySize(Number(e.target.value))}
             >
@@ -88,10 +102,10 @@ export function ConjurePage() {
               ))}
             </select>
           </label>
-          <label>
-            <span className="font-display text-sm uppercase text-oxblood">Character level</span>
+          <label className="block">
+            <span className="field-label mb-1">Character level</span>
             <select
-              className="mt-1 w-full rounded border border-oxblood/40 bg-parchment px-3 py-2"
+              className="field"
               value={characterLevel}
               onChange={(e) => setCharacterLevel(Number(e.target.value))}
             >
@@ -102,10 +116,10 @@ export function ConjurePage() {
               ))}
             </select>
           </label>
-          <label>
-            <span className="font-display text-sm uppercase text-oxblood">Difficulty</span>
+          <label className="block">
+            <span className="field-label mb-1">Difficulty</span>
             <select
-              className="mt-1 w-full rounded border border-oxblood/40 bg-parchment px-3 py-2"
+              className="field"
               value={difficulty}
               onChange={(e) => setDifficulty(e.target.value as Difficulty)}
             >
@@ -117,28 +131,39 @@ export function ConjurePage() {
             </select>
           </label>
         </div>
+
         <label className="block">
-          <span className="font-display text-sm uppercase text-oxblood">Description</span>
+          <span className="field-label mb-1">Description</span>
           <textarea
             required
             rows={8}
-            className="mt-1 w-full rounded border border-oxblood/40 bg-parchment px-3 py-2"
+            className="field"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Visuals, abilities, traits, weapons, alignment, tactics, drops…"
           />
         </label>
+
         {error ? (
-          <p role="alert" className="text-oxblood">
+          <p
+            role="alert"
+            className="anim-pop border-oxblood/50 bg-oxblood/10 text-oxblood-dark rounded border p-3 text-sm"
+          >
             {error}
           </p>
         ) : null}
-        <button
-          type="submit"
-          disabled={busy !== 'idle'}
-          className="rounded bg-oxblood px-4 py-2 font-display tracking-wide text-parchment uppercase disabled:opacity-60"
-        >
-          {busy === 'stats' ? 'Inscribing the statblock…' : busy === 'art' ? 'Summoning the likeness…' : 'Conjure'}
+
+        <button type="submit" disabled={busy !== 'idle'} className="btn btn-primary w-full sm:w-auto">
+          {busy === 'idle' ? (
+            <Flame className="size-4" aria-hidden="true" />
+          ) : (
+            <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+          )}
+          {busy === 'stats'
+            ? 'Inscribing the statblock…'
+            : busy === 'art'
+              ? 'Summoning the likeness…'
+              : 'Conjure'}
         </button>
       </form>
     </>

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Gem, ImageOff, ScrollText, Swords, type LucideIcon } from 'lucide-react'
 import { ABILITY_ABBREV } from '@shared/taxonomies.ts'
 import { abilityModifier, formatModifier, parseDiceExpressions } from '@shared/dice.ts'
 import type { Monster, NamedFeature } from '@shared/monsterSchema.ts'
@@ -12,8 +13,13 @@ import { useDice } from '@/hooks/useDice.ts'
 function Section({ title, children }: { title: string; children: ReactNode }) {
   if (!children) return null
   return (
-    <section className="mt-3">
-      <h3 className="font-display text-lg font-bold tracking-wide text-oxblood uppercase">{title}</h3>
+    <section className="mt-4">
+      <h3 className="section-heading flex items-center gap-2 text-lg">
+        <span aria-hidden="true" className="text-gold text-xs">
+          ◆
+        </span>
+        {title}
+      </h3>
       <hr className="stat-rule mb-2" />
       {children}
     </section>
@@ -24,7 +30,7 @@ function FeatureList({ items }: { items: NamedFeature[] }) {
   const dice = useDice()
   if (!items.length) return null
   return (
-    <div className="space-y-2">
+    <div className="mt-2 space-y-2">
       {items.map((item) => (
         <p key={item.name}>
           <DiceHotButton
@@ -49,6 +55,19 @@ function Defense({ label, value }: { label: string; value: string | null }) {
   )
 }
 
+function LoreBlock({ title, Icon, text }: { title: string; Icon: LucideIcon; text: string }) {
+  return (
+    <section className="panel p-5">
+      <h3 className="section-heading flex items-center gap-2 text-xl">
+        <Icon className="text-oxblood/70 size-5" aria-hidden="true" />
+        {title}
+      </h3>
+      <hr className="stat-rule mt-1 mb-3" />
+      <p className="whitespace-pre-wrap">{text}</p>
+    </section>
+  )
+}
+
 export function Statblock({
   monster,
   imageUrl,
@@ -60,22 +79,31 @@ export function Statblock({
   const hitDice = parseDiceExpressions(monster.hit_dice)[0]
 
   return (
-    <article className="grid gap-6 lg:grid-cols-[minmax(0,280px)_1fr]">
-      <div className="overflow-hidden rounded border border-oxblood/30 bg-black/5">
-        {imageUrl ? (
-          <img src={imageUrl} alt={monster.name} className="h-full w-full object-cover object-top" />
-        ) : (
-          <div className="flex min-h-80 items-center justify-center p-6 text-center italic text-ink/50">
-            No illustration in this entry.
-          </div>
-        )}
+    <article className="grid gap-6 lg:grid-cols-[minmax(0,300px)_1fr]">
+      <div className="anim-rise lg:sticky lg:top-20 lg:self-start">
+        <div className="panel overflow-hidden p-1.5">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={monster.name}
+              decoding="async"
+              className="w-full rounded-md object-cover object-top"
+            />
+          ) : (
+            <div className="text-ink/45 flex min-h-80 flex-col items-center justify-center gap-2 p-6 text-center italic">
+              <ImageOff className="size-8" aria-hidden="true" />
+              No illustration in this entry.
+            </div>
+          )}
+        </div>
       </div>
-      <div className="rounded border border-oxblood/40 bg-statblock p-5 shadow-md">
-        <h2 className="font-display text-3xl font-bold tracking-wide text-oxblood uppercase">
+
+      <div className="panel anim-rise delay-1 p-6">
+        <h2 className="title-tome font-display text-3xl font-bold tracking-wide uppercase">
           {monster.name}
         </h2>
-        <p className="italic">{typeLine(monster)}</p>
-        <hr className="stat-rule my-2" />
+        <p className="text-ink/80 italic">{typeLine(monster)}</p>
+        <hr className="stat-rule my-3" />
         <p>
           <strong>Armor Class</strong> {formatAc(monster.ac)}
         </p>
@@ -94,8 +122,8 @@ export function Statblock({
         <p>
           <strong>Speed</strong> {monster.speed}
         </p>
-        <hr className="stat-rule-thin my-2" />
-        <div className="grid grid-cols-6 gap-1 text-center">
+        <hr className="stat-rule-thin my-3" />
+        <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
           {ABILITY_ABBREV.map((abbrev, index) => {
             const score = monster.stats[index] ?? 10
             const mod = abilityModifier(score)
@@ -103,66 +131,71 @@ export function Statblock({
               <button
                 key={abbrev}
                 type="button"
-                className="dice-hot relative py-1"
+                className="ability-tile cursor-pointer py-1.5"
                 onClick={() => dice.rollCheck(mod, abbrev)}
               >
-                <div className="flex items-center justify-center gap-0.5 font-display text-xs font-bold text-oxblood">
+                <div className="font-display text-oxblood flex items-center justify-center gap-0.5 text-xs font-bold">
                   {abbrev}
                   <DiceMarker />
                 </div>
-                <div>
-                  {score} ({formatModifier(mod)})
+                <div className="text-sm">
+                  {score} <span className="text-ink/65">({formatModifier(mod)})</span>
                 </div>
               </button>
             )
           })}
         </div>
-        <hr className="stat-rule-thin my-2" />
-        {monster.saves.length ? (
+        <hr className="stat-rule-thin my-3" />
+        <div className="space-y-0.5">
+          {monster.saves.length ? (
+            <p>
+              <strong>Saving Throws</strong>{' '}
+              {monster.saves.map((entry, i) =>
+                Object.entries(entry).map(([name, bonus]) => (
+                  <DiceHotButton
+                    key={`${name}-${i}`}
+                    className="mr-2"
+                    onClick={() => dice.rollCheck(bonus, `${name} save`)}
+                  >
+                    {name} {formatModifier(bonus)}
+                  </DiceHotButton>
+                )),
+              )}
+            </p>
+          ) : null}
+          {monster.skills.length ? (
+            <p>
+              <strong>Skills</strong>{' '}
+              {monster.skills.map((entry, i) =>
+                Object.entries(entry).map(([name, bonus]) => (
+                  <DiceHotButton
+                    key={`${name}-${i}`}
+                    className="mr-2"
+                    onClick={() => dice.rollCheck(bonus, name)}
+                  >
+                    {name} {formatModifier(bonus)}
+                  </DiceHotButton>
+                )),
+              )}
+            </p>
+          ) : null}
+          <Defense label="Damage Vulnerabilities" value={monster.damage_vulnerabilities} />
+          <Defense label="Damage Resistances" value={monster.damage_resistances} />
+          <Defense label="Damage Immunities" value={monster.damage_immunities} />
+          <Defense label="Condition Immunities" value={monster.condition_immunities} />
           <p>
-            <strong>Saving Throws</strong>{' '}
-            {monster.saves.map((entry, i) =>
-              Object.entries(entry).map(([name, bonus]) => (
-                <DiceHotButton
-                  key={`${name}-${i}`}
-                  className="mr-2"
-                  onClick={() => dice.rollCheck(bonus, `${name} save`)}
-                >
-                  {name} {formatModifier(bonus)}
-                </DiceHotButton>
-              )),
-            )}
+            <strong>Senses</strong> {monster.senses}
           </p>
-        ) : null}
-        {monster.skills.length ? (
           <p>
-            <strong>Skills</strong>{' '}
-            {monster.skills.map((entry, i) =>
-              Object.entries(entry).map(([name, bonus]) => (
-                <DiceHotButton
-                  key={`${name}-${i}`}
-                  className="mr-2"
-                  onClick={() => dice.rollCheck(bonus, name)}
-                >
-                  {name} {formatModifier(bonus)}
-                </DiceHotButton>
-              )),
-            )}
+            <strong>Languages</strong> {monster.languages}
           </p>
-        ) : null}
-        <Defense label="Damage Vulnerabilities" value={monster.damage_vulnerabilities} />
-        <Defense label="Damage Resistances" value={monster.damage_resistances} />
-        <Defense label="Damage Immunities" value={monster.damage_immunities} />
-        <Defense label="Condition Immunities" value={monster.condition_immunities} />
-        <p>
-          <strong>Senses</strong> {monster.senses}
-        </p>
-        <p>
-          <strong>Languages</strong> {monster.languages}
-        </p>
-        <p>
-          <strong>Challenge</strong> {monster.cr}
-        </p>
+          <p>
+            <strong>Challenge</strong>{' '}
+            <span className="font-display text-parchment bg-oxblood-dark rounded-full px-2 py-0.5 text-xs tracking-wider">
+              CR {monster.cr}
+            </span>
+          </p>
+        </div>
         <FeatureList items={monster.traits} />
         {monster.actions.length ? (
           <Section title="Actions">
@@ -185,29 +218,14 @@ export function Statblock({
           </Section>
         ) : null}
       </div>
+
       {(monster.lore || monster.tactics || monster.drops) && (
-        <div className="space-y-6 lg:col-span-2">
-          {monster.lore ? (
-            <section>
-              <h3 className="font-display text-xl font-bold text-oxblood uppercase">Lore</h3>
-              <hr className="stat-rule mb-2" />
-              <p className="whitespace-pre-wrap">{monster.lore}</p>
-            </section>
-          ) : null}
+        <div className="anim-rise delay-2 grid gap-6 lg:col-span-2">
+          {monster.lore ? <LoreBlock title="Lore" Icon={ScrollText} text={monster.lore} /> : null}
           {monster.tactics ? (
-            <section>
-              <h3 className="font-display text-xl font-bold text-oxblood uppercase">Tactics</h3>
-              <hr className="stat-rule mb-2" />
-              <p className="whitespace-pre-wrap">{monster.tactics}</p>
-            </section>
+            <LoreBlock title="Tactics" Icon={Swords} text={monster.tactics} />
           ) : null}
-          {monster.drops ? (
-            <section>
-              <h3 className="font-display text-xl font-bold text-oxblood uppercase">Drops</h3>
-              <hr className="stat-rule mb-2" />
-              <p className="whitespace-pre-wrap">{monster.drops}</p>
-            </section>
-          ) : null}
+          {monster.drops ? <LoreBlock title="Drops" Icon={Gem} text={monster.drops} /> : null}
         </div>
       )}
     </article>

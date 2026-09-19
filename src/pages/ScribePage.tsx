@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { ClipboardList, PenLine, Plus, Save, X } from 'lucide-react'
 import type { Monster, NamedFeature } from '@shared/monsterSchema.ts'
 import {
   ARCHETYPES,
@@ -23,13 +24,13 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="font-display text-xs uppercase tracking-wide text-oxblood">{label}</span>
+      <span className="field-label">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   )
 }
 
-const inputClass = 'w-full rounded border border-oxblood/40 bg-parchment px-3 py-2'
+const inputClass = 'field'
 
 function FeatureEditor({
   title,
@@ -41,10 +42,10 @@ function FeatureEditor({
   onChange: (items: NamedFeature[]) => void
 }) {
   return (
-    <fieldset className="space-y-2 rounded border border-oxblood/20 p-3">
-      <legend className="font-display text-sm uppercase text-oxblood">{title}</legend>
+    <fieldset className="panel-inset space-y-2 p-3">
+      <legend className="section-heading px-1 text-sm">{title}</legend>
       {items.map((item, index) => (
-        <div key={index} className="grid gap-2 md:grid-cols-[12rem_1fr_auto]">
+        <div key={index} className="anim-fade grid gap-2 md:grid-cols-[12rem_1fr_auto]">
           <input
             className={inputClass}
             value={item.name}
@@ -68,18 +69,20 @@ function FeatureEditor({
           />
           <button
             type="button"
-            className="text-sm underline"
+            className="btn btn-danger btn-sm self-start"
             onClick={() => onChange(items.filter((_, i) => i !== index))}
           >
+            <X className="size-3.5" aria-hidden="true" />
             Remove
           </button>
         </div>
       ))}
       <button
         type="button"
-        className="text-sm underline"
+        className="btn btn-ghost btn-sm"
         onClick={() => onChange([...items, { name: '', desc: '' }])}
       >
+        <Plus className="size-3.5" aria-hidden="true" />
         Add
       </button>
     </fieldset>
@@ -119,29 +122,27 @@ export function ScribePage() {
   }
 
   const modeSwitcher = !id ? (
-    <div className="mb-6 flex justify-center gap-3 font-display text-sm uppercase tracking-wider">
-      <button
-        type="button"
-        onClick={() => setSearchParams({ mode: 'form' })}
-        className={`rounded px-4 py-1.5 transition ${
-          mode === 'form'
-            ? 'bg-oxblood text-parchment shadow'
-            : 'border border-oxblood/40 bg-statblock text-oxblood hover:bg-oxblood/10'
-        }`}
-      >
-        ✍️ Manual Form
-      </button>
-      <button
-        type="button"
-        onClick={() => setSearchParams({ mode: 'json' })}
-        className={`rounded px-4 py-1.5 transition ${
-          mode === 'json'
-            ? 'bg-oxblood text-parchment shadow'
-            : 'border border-oxblood/40 bg-statblock text-oxblood hover:bg-oxblood/10'
-        }`}
-      >
-        📋 Paste JSON
-      </button>
+    <div className="mb-6 flex justify-center">
+      <div className="nav-bar font-display flex gap-1 p-1 text-sm tracking-wider uppercase">
+        <button
+          type="button"
+          aria-pressed={mode === 'form'}
+          onClick={() => setSearchParams({ mode: 'form' })}
+          className={`nav-link flex items-center gap-1.5 ${mode === 'form' ? 'nav-link-active' : ''}`}
+        >
+          <PenLine className="size-3.5" aria-hidden="true" />
+          Manual Form
+        </button>
+        <button
+          type="button"
+          aria-pressed={mode === 'json'}
+          onClick={() => setSearchParams({ mode: 'json' })}
+          className={`nav-link flex items-center gap-1.5 ${mode === 'json' ? 'nav-link-active' : ''}`}
+        >
+          <ClipboardList className="size-3.5" aria-hidden="true" />
+          Paste JSON
+        </button>
+      </div>
     </div>
   ) : null
 
@@ -149,7 +150,9 @@ export function ScribePage() {
     return (
       <div className="space-y-4">
         {modeSwitcher}
-        <PasteJsonEditor />
+        <div className="anim-rise">
+          <PasteJsonEditor />
+        </div>
       </div>
     )
   }
@@ -158,7 +161,7 @@ export function ScribePage() {
     <div className="space-y-4">
       {modeSwitcher}
       <form
-        className="space-y-4 rounded border border-oxblood/40 bg-statblock p-6"
+        className="panel anim-rise space-y-4 p-6"
         onSubmit={async (e) => {
           e.preventDefault()
           if (!monster.name.trim()) {
@@ -170,10 +173,18 @@ export function ScribePage() {
           navigate(`/monster/${next.id}`)
         }}
       >
-        <h2 className="font-display text-2xl text-oxblood uppercase">
-          {id ? 'Amend the entry' : 'Scribe a monster'}
-        </h2>
-        {error ? <p className="text-oxblood">{error}</p> : null}
+        <div>
+          <h2 className="section-heading text-2xl">{id ? 'Amend the entry' : 'Scribe a monster'}</h2>
+          <hr className="stat-rule mt-2" />
+        </div>
+        {error ? (
+          <p
+            role="alert"
+            className="anim-pop border-oxblood/50 bg-oxblood/10 text-oxblood-dark rounded border p-3 text-sm"
+          >
+            {error}
+          </p>
+        ) : null}
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="Name">
           <input className={inputClass} value={monster.name} onChange={(e) => update('name', e.target.value)} />
@@ -220,8 +231,8 @@ export function ScribePage() {
         </Field>
       </div>
       <fieldset>
-        <legend className="font-display text-sm uppercase text-oxblood">Ability scores</legend>
-        <div className="mt-2 grid grid-cols-6 gap-2">
+        <legend className="section-heading text-sm">Ability scores</legend>
+        <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
           {['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map((label, index) => (
             <Field key={label} label={label}>
               <input
@@ -281,12 +292,13 @@ export function ScribePage() {
         </Field>
       </div>
       <fieldset>
-        <legend className="font-display text-sm uppercase text-oxblood">Locomotion</legend>
-        <div className="mt-2 flex gap-4">
+        <legend className="section-heading text-sm">Locomotion</legend>
+        <div className="mt-2 flex flex-wrap gap-4">
           {LOCOMOTIONS.map((loc) => (
-            <label key={loc} className="flex items-center gap-2">
+            <label key={loc} className="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
+                className="check"
                 checked={monster.locomotion.includes(loc)}
                 onChange={(e) => {
                   const next = e.target.checked
@@ -318,6 +330,7 @@ export function ScribePage() {
         <input
           type="file"
           accept="image/*"
+          className="file-quill text-ink/70 text-sm"
           onChange={async (e) => {
             const file = e.target.files?.[0]
             if (!file) return
@@ -327,9 +340,16 @@ export function ScribePage() {
             setPreview(URL.createObjectURL(file))
           }}
         />
-        {preview ? <img src={preview} alt="" className="mt-2 max-h-64 rounded border border-oxblood/30" /> : null}
+        {preview ? (
+          <img
+            src={preview}
+            alt=""
+            className="anim-pop border-oxblood/30 mt-3 max-h-64 rounded-md border shadow-md"
+          />
+        ) : null}
       </Field>
-      <button type="submit" className="rounded bg-oxblood px-4 py-2 font-display text-parchment uppercase">
+      <button type="submit" className="btn btn-primary">
+        <Save className="size-4" aria-hidden="true" />
         Save to the Bestiary
       </button>
     </form>

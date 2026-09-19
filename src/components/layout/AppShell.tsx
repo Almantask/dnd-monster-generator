@@ -1,41 +1,69 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { BookOpen, Flame, ScrollText, Settings as SettingsIcon } from 'lucide-react'
 import { DiceTray } from '@/components/dice/DiceTray.tsx'
 
 const links = [
-  { to: '/', label: 'Bestiary' },
-  { to: '/conjure', label: 'Conjure' },
-  { to: '/scribe', label: 'Scribe' },
-  { to: '/settings', label: 'Settings' },
+  { to: '/', label: 'Bestiary', Icon: BookOpen },
+  { to: '/conjure', label: 'Conjure', Icon: Flame },
+  { to: '/scribe', label: 'Scribe', Icon: ScrollText },
+  { to: '/settings', label: 'Settings', Icon: SettingsIcon },
 ]
 
 export function AppShell() {
+  const location = useLocation()
+
+  // HashRouter keeps the old scroll offset between pages; with the nav pinned
+  // on screen that would drop people mid-way down the next page.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [location.pathname])
+
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-28 pt-6">
-      <header className="mb-8 border-b-2 border-oxblood pb-4 text-center">
-        <p className="font-display text-xs tracking-[0.4em] text-oxblood uppercase">
-          A custom D&D monsters generator
+    <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 pt-8 pb-28">
+      <header className="anim-fade mb-5 text-center">
+        <p className="eyebrow flex items-center justify-center gap-2 text-[0.6rem] tracking-[0.2em] sm:text-[0.7rem] sm:tracking-[0.38em]">
+          <span aria-hidden="true" className="twinkle text-gold">
+            ✦
+          </span>
+          A custom D&amp;D monsters generator
+          <span aria-hidden="true" className="twinkle-2 text-gold">
+            ✦
+          </span>
         </p>
-        <h1 className="font-display text-4xl font-bold text-oxblood-dark md:text-5xl">
+        <h1 className="title-tome font-display mt-1 text-4xl font-bold md:text-5xl">
           The Bestiary
         </h1>
-        <nav className="mt-4 flex flex-wrap justify-center gap-3 font-display text-sm tracking-widest uppercase">
-          {links.map((link) => (
+        <div className="flourish mx-auto mt-3 max-w-md" aria-hidden="true">
+          <span className="twinkle-3 text-sm">❖</span>
+        </div>
+      </header>
+
+      <div className="sticky top-3 z-40 mb-8 flex justify-center">
+        <nav className="nav-bar flex justify-center gap-0.5 p-1 sm:gap-1">
+          {links.map(({ to, label, Icon }) => (
             <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === '/'}
+              key={to}
+              to={to}
+              end={to === '/'}
               className={({ isActive }) =>
-                `rounded px-3 py-1 ${isActive ? 'bg-oxblood text-parchment' : 'text-oxblood hover:bg-oxblood/10'}`
+                `nav-link font-display flex flex-col items-center gap-0.5 px-3 text-[0.62rem] tracking-wider uppercase sm:flex-row sm:gap-1.5 sm:px-4 sm:text-sm sm:tracking-widest ${
+                  isActive ? 'nav-link-active' : ''
+                }`
               }
             >
-              {link.label}
+              <Icon className="size-3.5" aria-hidden="true" strokeWidth={2.25} />
+              {label}
             </NavLink>
           ))}
         </nav>
-      </header>
-      <main className="flex-1">
+      </div>
+
+      {/* Keyed on the path so each navigation replays the entrance animation. */}
+      <main key={location.pathname} className="anim-rise flex-1">
         <Outlet />
       </main>
+
       <DiceTray />
     </div>
   )
