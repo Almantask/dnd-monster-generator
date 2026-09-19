@@ -48,4 +48,15 @@ describe('ConjureProgressModal & Hints', () => {
     expect(screen.getByText('58s / 60s')).toBeTruthy()
     expect(screen.getByText('“Almost there…”')).toBeTruthy()
   })
+
+  it('resumes the timer from startedAt instead of resetting', () => {
+    vi.setSystemTime(new Date('2026-01-01T00:01:00Z'))
+    const startedAt = Date.now() - 30_000
+
+    render(<ConjureProgressModal busy="art" name="Ashfang" startedAt={startedAt} />)
+
+    expect(screen.getByText('Painting Likeness')).toBeTruthy()
+    expect(screen.getByText('30s / 60s')).toBeTruthy()
+    expect(screen.getByText('“Sneaking past the dungeon master’s screen…”')).toBeTruthy()
+  })
 })

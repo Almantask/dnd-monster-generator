@@ -1,24 +1,38 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Flame, LoaderCircle } from 'lucide-react'
 import { KoboldRunner } from './KoboldRunner.tsx'
 import { getHintForSeconds } from './conjureHints.ts'
+
+function useElapsedSeconds(startedAt?: number | null) {
+  const originRef = useRef(startedAt ?? Date.now())
+  const [seconds, setSeconds] = useState(() =>
+    Math.max(0, Math.floor((Date.now() - (startedAt ?? originRef.current)) / 1000)),
+  )
+
+  useEffect(() => {
+    originRef.current = startedAt ?? originRef.current
+    const tick = () => {
+      setSeconds(Math.max(0, Math.floor((Date.now() - originRef.current) / 1000)))
+    }
+    tick()
+    const interval = window.setInterval(tick, 1000)
+    return () => window.clearInterval(interval)
+  }, [startedAt])
+
+  return seconds
+}
 
 export function ConjureProgressModal({
   busy,
   name,
+  startedAt,
 }: {
   busy: 'stats' | 'art'
   name?: string
+  startedAt?: number | null
 }) {
-  const [seconds, setSeconds] = useState(0)
-
-  useEffect(() => {
-    setSeconds(0)
-    const interval = setInterval(() => {
-      setSeconds((prev) => prev + 1)
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [])
-
+  const seconds = useElapsedSeconds(startedAt)
   const currentHint = getHintForSeconds(seconds)
   // Progress fills up to 96% over 60s, holding until response arrives
   const progressPercent = Math.min(96, Math.round((seconds / 60) * 100))
@@ -103,6 +117,59 @@ export function ConjureProgressModal({
           >
             &ldquo;{currentHint}&rdquo;
           </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function ConjureProgressBanner({
+  busy,
+  name,
+  startedAt,
+}: {
+  busy: 'stats' | 'art'
+  name?: string
+  startedAt?: number | null
+}) {
+  const seconds = useElapsedSeconds(startedAt)
+  const progressPercent = Math.min(96, Math.round((seconds / 60) * 100))
+  const stage = busy === 'stats' ? 'Inscribing the statblock' : 'Summoning the likeness'
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="anim-pop pointer-events-none fixed inset-x-0 top-[4.75rem] z-50 flex justify-center px-4"
+    >
+      <div className="panel pointer-events-auto w-full max-w-xl border-2 border-oxblood px-4 py-3 shadow-2xl">
+        <div className="flex items-center gap-3">
+          <LoaderCircle className="text-oxblood size-5 shrink-0 animate-spin" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-oxblood text-sm tracking-wider uppercase">
+              {stage}
+              {name ? ` — ${name}` : ''}
+            </p>
+            <p className="text-ink/70 truncate text-xs italic">
+              Conjuration continues while you browse · {seconds}s
+            </p>
+            <div className="progress-track mt-2 h-1.5 w-full p-px">
+              <div className="h-full overflow-hidden rounded-full">
+                <div
+                  role="progressbar"
+                  aria-valuenow={progressPercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  className="progress-fill h-full w-full"
+                  style={{ transform: `translateX(${progressPercent - 100}%)` }}
+                />
+              </div>
+            </div>
+          </div>
+          <Link to="/conjure" className="btn btn-outline btn-sm shrink-0">
+            <Flame className="size-3.5" aria-hidden="true" />
+            Show
+          </Link>
         </div>
       </div>
     </div>

@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { BookOpen, Flame, ScrollText, Settings as SettingsIcon } from 'lucide-react'
+import { BookOpen, Flame, LoaderCircle, ScrollText, Settings as SettingsIcon } from 'lucide-react'
 import { DiceTray } from '@/components/dice/DiceTray.tsx'
+import { useConjure } from '@/hooks/useConjure.ts'
 
 const links = [
   { to: '/', label: 'Bestiary', Icon: BookOpen },
@@ -12,6 +13,7 @@ const links = [
 
 export function AppShell() {
   const location = useLocation()
+  const { busy } = useConjure()
 
   // HashRouter keeps the old scroll offset between pages; with the nav pinned
   // on screen that would drop people mid-way down the next page.
@@ -39,23 +41,35 @@ export function AppShell() {
         </div>
       </header>
 
-      <div className="sticky top-3 z-40 mb-8 flex justify-center">
+      <div className="sticky top-3 z-[60] mb-8 flex justify-center">
         <nav className="nav-bar flex justify-center gap-0.5 p-1 sm:gap-1">
-          {links.map(({ to, label, Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                `nav-link font-display flex flex-col items-center gap-0.5 px-3 text-[0.62rem] tracking-wider uppercase sm:flex-row sm:gap-1.5 sm:px-4 sm:text-sm sm:tracking-widest ${
-                  isActive ? 'nav-link-active' : ''
-                }`
-              }
-            >
-              <Icon className="size-3.5" aria-hidden="true" strokeWidth={2.25} />
-              {label}
-            </NavLink>
-          ))}
+          {links.map(({ to, label, Icon }) => {
+            const generating = to === '/conjure' && busy !== 'idle'
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                aria-label={generating ? 'Conjure (generating)' : undefined}
+                className={({ isActive }) =>
+                  `nav-link font-display flex flex-col items-center gap-0.5 px-3 text-[0.62rem] tracking-wider uppercase sm:flex-row sm:gap-1.5 sm:px-4 sm:text-sm sm:tracking-widest ${
+                    isActive ? 'nav-link-active' : ''
+                  }`
+                }
+              >
+                {generating ? (
+                  <LoaderCircle
+                    className="size-3.5 animate-spin"
+                    aria-hidden="true"
+                    strokeWidth={2.25}
+                  />
+                ) : (
+                  <Icon className="size-3.5" aria-hidden="true" strokeWidth={2.25} />
+                )}
+                {label}
+              </NavLink>
+            )
+          })}
         </nav>
       </div>
 
