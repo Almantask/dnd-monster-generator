@@ -13,6 +13,10 @@ export async function captureStatblockPng(node: HTMLElement): Promise<string> {
       pixelRatio: 2,
       backgroundColor: SHEET_BACKGROUND,
       cacheBust: true,
+      filter: (el) => {
+        if (!(el instanceof Element)) return true
+        return !el.hasAttribute('data-dice-marker') && !el.closest('[data-dice-marker]')
+      },
     })
   } finally {
     node.classList.remove('is-exporting')

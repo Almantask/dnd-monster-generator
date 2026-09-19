@@ -877,6 +877,10 @@
   .statblock-sheet.is-exporting [data-dice-marker] {
     display: none;
   }
+
+  .statblock-sheet.is-exporting .dice-hot {
+    border-bottom: none;
+  }
 }
 
 /* ==========================================================================
