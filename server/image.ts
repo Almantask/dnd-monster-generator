@@ -1,7 +1,30 @@
-import { IMAGEN_MODELS } from '../shared/aiModels.ts'
-import { isQuotaError, markGeminiQuotaExceeded } from './quota.ts'
+import { CLOUDFLARE_IMAGE_MODELS, GEMINI_IMAGE_MODELS, IMAGEN_MODELS } from '../shared/aiModels.ts'
+import { isFreeTierZeroQuota } from './quota.ts'
 
-export const DEFAULT_IMAGEN_MODEL = 'imagen-3.0-generate-002'
+export const FREE_TIER_IMAGE_MESSAGE =
+  'GEMINI_API_KEY belongs to a free-tier Google AI Studio project, which has no image generation quota (limit 0). Enable billing for that project in Google AI Studio to generate portraits with Gemini.'
+
+export const CLOUDFLARE_DAILY_LIMIT_MESSAGE =
+  'Cloudflare Workers AI daily free allocation (10,000 neurons) is used up; it resets daily.'
+
+class GoogleImageError extends Error {
+  constructor(
+    message: string,
+    readonly needsBilling: boolean,
+  ) {
+    super(message)
+  }
+}
+
+class CloudflareImageError extends Error {
+  constructor(
+    message: string,
+    /** Bad token or exhausted neuron pool: every Workers AI model would fail the same way. */
+    readonly affectsAllModels: boolean,
+  ) {
+    super(message)
+  }
+}
 
 export type ImageRuntime = {
   env?: NodeJS.Dict<string>
@@ -50,9 +73,12 @@ async function fromImagen(
   )
   const duration = Date.now() - start
   if (!res.ok) {
-    const errText = (await res.text()).slice(0, 300)
-    console.warn(`[IMAGEN] ✗ Imagen model "${model}" failed (${res.status}) in ${duration}ms: ${errText}`)
-    throw new Error(`Imagen ${model} (${res.status}): ${errText.slice(0, 200)}`)
+    const errText = await res.text()
+    console.warn(`[IMAGEN] ✗ Imagen model "${model}" failed (${res.status}) in ${duration}ms: ${errText.slice(0, 300)}`)
+    throw new GoogleImageError(
+      `Imagen ${model} (${res.status}): ${errText.slice(0, 200)}`,
+      isFreeTierZeroQuota(res.status, errText),
+    )
   }
   const data = (await res.json()) as {
     predictions?: Array<{
@@ -101,9 +127,12 @@ async function fromGeminiMultimodal(
   )
   const duration = Date.now() - start
   if (!res.ok) {
-    const errText = (await res.text()).slice(0, 300)
-    console.warn(`[GEMINI] ✗ Gemini multimodal image API failed (${res.status}) in ${duration}ms: ${errText}`)
-    throw new Error(`Gemini ${res.status}: ${errText.slice(0, 200)}`)
+    const errText = await res.text()
+    console.warn(`[GEMINI] ✗ Gemini multimodal image API failed (${res.status}) in ${duration}ms: ${errText.slice(0, 300)}`)
+    throw new GoogleImageError(
+      `Gemini ${model} (${res.status}): ${errText.slice(0, 200)}`,
+      isFreeTierZeroQuota(res.status, errText),
+    )
   }
   const data = (await res.json()) as {
     candidates?: Array<{
@@ -136,6 +165,7 @@ async function fromGoogleStudio(
   const userModel = env.IMAGEN_MODEL?.trim() || env.GEMINI_IMAGE_MODEL?.trim()
   const candidateModels = [
     ...(userModel ? [userModel] : []),
+    ...GEMINI_IMAGE_MODELS,
     ...IMAGEN_MODELS,
   ].filter((m, idx, arr) => arr.indexOf(m) === idx)
 
@@ -150,18 +180,95 @@ async function fromGoogleStudio(
         return { ...image, provider: 'gemini' }
       }
     } catch (err) {
+      if (err instanceof GoogleImageError && err.needsBilling) {
+        // Every image model shares this project-level limit, so trying the rest only burns time.
+        console.warn(`[GOOGLE AI STUDIO] ✗ ${FREE_TIER_IMAGE_MESSAGE}`)
+        throw new Error(FREE_TIER_IMAGE_MESSAGE)
+      }
       lastError = err instanceof Error ? err.message : String(err)
       console.warn(`[GOOGLE AI STUDIO] Model "${model}" failed: ${lastError}`)
     }
   }
+  throw new Error(lastError)
+}
 
-  // Final fallback to multimodal gemini-2.5-flash-image if all Imagen models failed
-  try {
-    const image = await fromGeminiMultimodal('gemini-2.5-flash-image', prompt, runtime)
-    return { ...image, provider: 'gemini' }
-  } catch {
-    throw new Error(lastError)
+function sniffImageMime(bytes: Uint8Array): string {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'image/png'
+  if (Buffer.from(bytes.subarray(8, 12)).toString('ascii') === 'WEBP') return 'image/webp'
+  return 'image/jpeg'
+}
+
+async function fromCloudflareModel(
+  model: string,
+  prompt: string,
+  runtime?: ImageRuntime,
+): Promise<{ mime: string; bytes: Uint8Array }> {
+  const env = envOf(runtime)
+  const headers: Record<string, string> = { Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` }
+  let body: FormData | string
+  if (model.includes('flux-2')) {
+    // FLUX.2 models on Workers AI only accept multipart input; fetch sets the boundary header.
+    body = new FormData()
+    body.append('prompt', prompt)
+    body.append('width', '768')
+    body.append('height', '1024')
+  } else {
+    headers['Content-Type'] = 'application/json'
+    body = JSON.stringify({ prompt, steps: 4 })
   }
+  console.log(`[CLOUDFLARE] Calling Workers AI for image with model "${model}"...`)
+  const start = Date.now()
+  const res = await fetchOf(runtime)(
+    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/run/${model}`,
+    // FLUX.2 klein measured 18-31s per portrait; schnell answers in ~2s.
+    { method: 'POST', headers, body, signal: AbortSignal.timeout(60_000) },
+  )
+  const duration = Date.now() - start
+  if (!res.ok) {
+    const errText = await res.text()
+    console.warn(`[CLOUDFLARE] ✗ Model "${model}" failed (${res.status}) in ${duration}ms: ${errText.slice(0, 300)}`)
+    if (/daily free allocation|"code"\s*:\s*4006\b/i.test(errText)) {
+      throw new CloudflareImageError(CLOUDFLARE_DAILY_LIMIT_MESSAGE, true)
+    }
+    throw new CloudflareImageError(
+      `Workers AI ${model} (${res.status}): ${errText.slice(0, 200)}`,
+      [401, 403, 429].includes(res.status),
+    )
+  }
+  const data = (await res.json()) as { result?: { image?: string }; image?: string }
+  const b64 = data.result?.image ?? data.image
+  if (!b64) {
+    console.warn(`[CLOUDFLARE] ✗ Model "${model}" returned no image in ${duration}ms`)
+    throw new CloudflareImageError(`Workers AI ${model} returned no image`, false)
+  }
+  const bytes = Uint8Array.from(Buffer.from(b64, 'base64'))
+  if (!bytes.byteLength) throw new CloudflareImageError(`Workers AI ${model} image empty`, false)
+  const mime = sniffImageMime(bytes)
+  console.log(`[CLOUDFLARE] ✓ Image received from "${model}" (${bytes.byteLength} bytes, ${mime}) in ${duration}ms`)
+  return { mime, bytes }
+}
+
+async function fromCloudflare(
+  prompt: string,
+  runtime?: ImageRuntime,
+): Promise<{ mime: string; bytes: Uint8Array }> {
+  const userModel = envOf(runtime).CLOUDFLARE_IMAGE_MODEL?.trim()
+  const candidateModels = [
+    ...(userModel ? [userModel] : []),
+    ...CLOUDFLARE_IMAGE_MODELS,
+  ].filter((m, idx, arr) => arr.indexOf(m) === idx)
+
+  let lastError = 'All Cloudflare Workers AI image models failed'
+  for (const model of candidateModels) {
+    try {
+      return await fromCloudflareModel(model, prompt, runtime)
+    } catch (err) {
+      if (err instanceof CloudflareImageError && err.affectsAllModels) throw err
+      lastError = err instanceof Error ? err.message : String(err)
+      console.warn(`[CLOUDFLARE] Model "${model}" failed: ${lastError}`)
+    }
+  }
+  throw new Error(lastError)
 }
 
 async function fromPollinations(
@@ -169,20 +276,23 @@ async function fromPollinations(
   runtime?: ImageRuntime,
 ): Promise<{ mime: string; bytes: Uint8Array }> {
   const encoded = encodeURIComponent(prompt)
-  const key = envOf(runtime).POLLINATIONS_API_KEY
-  const urls = [
-    `https://gen.pollinations.ai/image/${encoded}?model=flux&width=768&height=1024&nologo=true`,
-    `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=768&height=1024&nologo=true`,
+  const key = envOf(runtime).POLLINATIONS_API_KEY?.trim()
+  const query = 'model=flux&width=768&height=1024&nologo=true'
+  const endpoints: Array<{ url: string; headers?: Record<string, string> }> = [
+    // gen.pollinations.ai rejects keyless requests (401), so only call it with a secret key.
+    ...(key
+      ? [{ url: `https://gen.pollinations.ai/image/${encoded}?${query}`, headers: { Authorization: `Bearer ${key}` } }]
+      : []),
+    // Legacy keyless endpoint; never send the secret key here.
+    { url: `https://image.pollinations.ai/prompt/${encoded}?${query}` },
   ]
   let last = 'Pollinations failed'
-  for (let i = 0; i < urls.length; i++) {
-    const url = urls[i]!
-    console.log(`[POLLINATIONS] Attempting endpoint ${i + 1}/${urls.length}...`)
+  for (let i = 0; i < endpoints.length; i++) {
+    const { url, headers } = endpoints[i]!
+    console.log(`[POLLINATIONS] Attempting endpoint ${i + 1}/${endpoints.length}...`)
     const start = Date.now()
     try {
-      const res = await fetchOf(runtime)(url, {
-        headers: key ? { Authorization: `Bearer ${key}` } : undefined,
-      })
+      const res = await fetchOf(runtime)(url, { headers })
       const duration = Date.now() - start
       if (!res.ok) {
         last = `Pollinations ${res.status}`
@@ -207,44 +317,6 @@ async function fromPollinations(
       last = error instanceof Error ? error.message : String(error)
       console.warn(`[POLLINATIONS] Endpoint ${i + 1} fetch error: ${last}`)
     }
-  }
-  throw new Error(last)
-}
-
-async function fromHuggingFace(
-  prompt: string,
-  runtime?: ImageRuntime,
-): Promise<{ mime: string; bytes: Uint8Array }> {
-  const token = envOf(runtime).HF_TOKEN
-  if (!token) throw new Error('HF_TOKEN is not set')
-  const endpoints = [
-    'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
-    'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
-  ]
-  let last = 'Hugging Face failed'
-  for (let i = 0; i < endpoints.length; i++) {
-    const url = endpoints[i]!
-    console.log(`[HUGGINGFACE] Calling HuggingFace endpoint ${i + 1}/${endpoints.length}...`)
-    const start = Date.now()
-    const res = await fetchOf(runtime)(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inputs: prompt }),
-    })
-    const duration = Date.now() - start
-    if (!res.ok) {
-      const errText = (await res.text()).slice(0, 300)
-      last = `Hugging Face ${res.status}: ${errText}`
-      console.warn(`[HUGGINGFACE] Endpoint ${i + 1} failed (${res.status}) in ${duration}ms: ${errText}`)
-      continue
-    }
-    const mime = res.headers.get('content-type') || 'image/png'
-    const bytes = new Uint8Array(await res.arrayBuffer())
-    console.log(`[HUGGINGFACE] ✓ Image received (${bytes.byteLength} bytes, ${mime}) in ${duration}ms`)
-    return { mime, bytes }
   }
   throw new Error(last)
 }
@@ -277,15 +349,26 @@ export async function generateImage(
       const msg = `Google AI Studio: ${error instanceof Error ? error.message : String(error)}`
       console.warn(`[IMAGE] ${msg}`)
       errors.push(msg)
-      if (isQuotaError(undefined, msg)) {
-        markGeminiQuotaExceeded()
-      }
     }
   } else {
     console.log('[IMAGE] Provider 1/3: Skipping Google AI Studio (GEMINI_API_KEY not set)')
   }
 
-  console.log('[IMAGE] Provider 2/3: Attempting Pollinations (FLUX)...')
+  if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) {
+    console.log('[IMAGE] Provider 2/3: Attempting Cloudflare Workers AI (FLUX)...')
+    try {
+      const image = await fromCloudflare(prompt, runtime)
+      return { mime: image.mime, dataUrl: toDataUrl(image.mime, image.bytes), provider: 'cloudflare' }
+    } catch (error) {
+      const msg = `Cloudflare Workers AI: ${error instanceof Error ? error.message : String(error)}`
+      console.warn(`[IMAGE] ${msg}`)
+      errors.push(msg)
+    }
+  } else {
+    console.log('[IMAGE] Provider 2/3: Skipping Cloudflare Workers AI (CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN not set)')
+  }
+
+  console.log('[IMAGE] Provider 3/3: Attempting Pollinations (FLUX)...')
   try {
     const image = await fromPollinations(prompt, runtime)
     return { mime: image.mime, dataUrl: toDataUrl(image.mime, image.bytes), provider: 'pollinations' }
@@ -293,21 +376,6 @@ export async function generateImage(
     const msg = `Pollinations: ${error instanceof Error ? error.message : String(error)}`
     console.warn(`[IMAGE] ${msg}`)
     errors.push(msg)
-  }
-
-  if (env.HF_TOKEN) {
-    console.log('[IMAGE] Provider 3/3: Attempting Hugging Face...')
-    try {
-      const image = await fromHuggingFace(prompt, runtime)
-      return { mime: image.mime, dataUrl: toDataUrl(image.mime, image.bytes), provider: 'huggingface' }
-    } catch (error) {
-      const msg = `Hugging Face: ${error instanceof Error ? error.message : String(error)}`
-      console.warn(`[IMAGE] ${msg}`)
-      errors.push(msg)
-    }
-  } else {
-    console.log('[IMAGE] Provider 3/3: Skipping Hugging Face (HF_TOKEN not set)')
-    errors.push('Hugging Face: HF_TOKEN is not set')
   }
 
   throw new Error(`Image generation failed. ${errors.join('. ')}`)

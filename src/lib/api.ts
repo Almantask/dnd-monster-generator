@@ -50,8 +50,8 @@ export async function fetchStatus(): Promise<{
   geminiQuotaExceeded?: boolean
   geminiQuotaResetInMs?: number
   openrouter: boolean
+  cloudflare: boolean
   pollinations: boolean
-  huggingface: boolean
   passphraseRequired: boolean
 }> {
   const base = apiBase()
@@ -62,8 +62,8 @@ export async function fetchStatus(): Promise<{
       geminiQuotaExceeded: false,
       geminiQuotaResetInMs: 0,
       openrouter: false,
+      cloudflare: false,
       pollinations: false,
-      huggingface: false,
       passphraseRequired: false,
     }
   }
@@ -72,8 +72,8 @@ export async function fetchStatus(): Promise<{
     geminiQuotaExceeded?: boolean
     geminiQuotaResetInMs?: number
     openrouter: boolean
+    cloudflare: boolean
     pollinations: boolean
-    huggingface: boolean
     passphraseRequired: boolean
   }>
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, FileDown, ImagePlus, LoaderCircle, Pencil, Trash2 } from 'lucide-react'
 import { Statblock } from '@/components/statblock/Statblock.tsx'
 import { deleteMonster, getImageUrl, getMonster } from '@/lib/storage.ts'
 import { exportMonsters } from '@/lib/importExport.ts'
@@ -36,35 +37,50 @@ export function MonsterPage() {
     }
   }, [id])
 
-  if (error) {
+  if (error && !monster) {
     return (
-      <p>
-        {error} <Link to="/">Return to the Bestiary</Link>
+      <div className="panel-dashed mx-auto max-w-lg p-8 text-center">
+        <p className="font-display text-oxblood text-lg">{error}</p>
+        <Link className="btn btn-outline btn-sm mt-4" to="/">
+          <ArrowLeft className="size-3.5" aria-hidden="true" />
+          Return to the Bestiary
+        </Link>
+      </div>
+    )
+  }
+  if (!monster) {
+    return (
+      <p role="status" className="text-oxblood/80 flex items-center justify-center gap-2 py-16 italic">
+        <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+        Opening the tome…
       </p>
     )
   }
-  if (!monster) return <p role="status">Opening the tome…</p>
 
   return (
     <div>
       {busy && <ConjureProgressModal busy="art" name={monster.name} />}
-      <div className="mb-4 flex flex-wrap gap-3">
-        <Link className="underline" to="/">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <Link className="btn btn-ghost btn-sm" to="/">
+          <ArrowLeft className="size-3.5" aria-hidden="true" />
           Back to Bestiary
         </Link>
-        <Link className="underline" to={`/scribe/${monster.id}`}>
+        <span className="flex-1" />
+        <Link className="btn btn-outline btn-sm" to={`/scribe/${monster.id}`}>
+          <Pencil className="size-3.5" aria-hidden="true" />
           Edit
         </Link>
         <button
           type="button"
-          className="underline"
+          className="btn btn-outline btn-sm"
           onClick={() => void exportMonsters([monster], false)}
         >
+          <FileDown className="size-3.5" aria-hidden="true" />
           Export JSON
         </button>
         <button
           type="button"
-          className="underline"
+          className="btn btn-outline btn-sm"
           disabled={busy}
           onClick={async () => {
             setBusy(true)
@@ -90,20 +106,33 @@ export function MonsterPage() {
             }
           }}
         >
+          {busy ? (
+            <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <ImagePlus className="size-3.5" aria-hidden="true" />
+          )}
           {busy ? 'Summoning art…' : 'Retry art'}
         </button>
         <button
           type="button"
-          className="text-oxblood underline"
+          className="btn btn-danger btn-sm"
           onClick={async () => {
             await deleteMonster(monster.id)
             navigate('/')
           }}
         >
+          <Trash2 className="size-3.5" aria-hidden="true" />
           Delete
         </button>
       </div>
-      {error ? <p className="mb-3 text-oxblood">{error}</p> : null}
+      {error ? (
+        <p
+          role="alert"
+          className="anim-pop border-oxblood/50 bg-oxblood/10 text-oxblood-dark mb-4 rounded border p-3 text-sm"
+        >
+          {error}
+        </p>
+      ) : null}
       <Statblock monster={monster} imageUrl={imageUrl} />
     </div>
   )

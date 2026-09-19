@@ -28,9 +28,9 @@ export function ConjureProgressModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="conjure-progress-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/75 p-4 backdrop-blur-xs animate-fadeIn"
+      className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-ink/75 p-4 backdrop-blur-xs"
     >
-      <div className="relative w-full max-w-lg rounded-lg border-2 border-oxblood bg-statblock p-6 shadow-2xl">
+      <div className="panel anim-pop relative w-full max-w-lg border-2 border-oxblood p-6 shadow-2xl">
         {/* Parchment corner accents */}
         <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-oxblood/60" />
         <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-oxblood/60" />
@@ -41,7 +41,7 @@ export function ConjureProgressModal({
         <div className="text-center">
           <h3
             id="conjure-progress-title"
-            className="font-display text-xl uppercase tracking-wider text-oxblood"
+            className="title-tome font-display text-xl tracking-wider uppercase"
           >
             {busy === 'stats' ? 'Inscribing Statblock' : 'Painting Likeness'}
           </h3>
@@ -53,14 +53,18 @@ export function ConjureProgressModal({
         <hr className="stat-rule my-4" />
 
         {/* Animated Kobold Running Arena */}
-        <div className="relative my-3 flex flex-col items-center justify-center overflow-hidden rounded border border-oxblood/20 bg-parchment/60 py-4 px-2">
+        <div className="panel-inset relative my-3 flex flex-col items-center justify-center overflow-hidden px-2 py-4">
           {/* Running Kobold */}
           <KoboldRunner className="w-36 h-28" />
 
           {/* Running track decor */}
           <div className="w-full px-6 mt-1 flex items-center justify-between text-[11px] font-display uppercase tracking-widest text-oxblood/60">
             <span>Grimoire</span>
-            <span className="animate-pulse text-oxblood">✦ ✦ ✦</span>
+            <span className="text-oxblood" aria-hidden="true">
+              <span className="twinkle inline-block">✦</span>{' '}
+              <span className="twinkle-2 inline-block">✦</span>{' '}
+              <span className="twinkle-3 inline-block">✦</span>
+            </span>
             <span>Bestiary</span>
           </div>
         </div>
@@ -71,15 +75,17 @@ export function ConjureProgressModal({
             <span>Arcane Weaver</span>
             <span>{seconds}s / 60s</span>
           </div>
-          <div className="h-3 w-full overflow-hidden rounded-full border border-oxblood/40 bg-parchment p-0.5">
-            <div
-              role="progressbar"
-              aria-valuenow={progressPercent}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              className="h-full rounded-full bg-linear-to-r from-oxblood/80 to-oxblood transition-all duration-1000 ease-out"
-              style={{ width: `${progressPercent}%` }}
-            />
+          <div className="progress-track h-3 w-full p-0.5">
+            <div className="h-full overflow-hidden rounded-full">
+              <div
+                role="progressbar"
+                aria-valuenow={progressPercent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                className="progress-fill h-full w-full transition-transform duration-1000 ease-out"
+                style={{ transform: `translateX(${progressPercent - 100}%)` }}
+              />
+            </div>
           </div>
         </div>
 
@@ -87,11 +93,11 @@ export function ConjureProgressModal({
         <div
           role="status"
           aria-live="polite"
-          className="mt-4 min-h-[44px] flex items-center justify-center text-center px-2 py-2 rounded bg-parchment/40 border border-oxblood/20"
+          className="panel-inset mt-4 flex min-h-[44px] items-center justify-center px-2 py-2 text-center"
         >
           <p
             key={currentHint}
-            className={`font-body text-sm text-ink ${
+            className={`anim-rise font-body text-sm text-ink ${
               currentHint === 'Almost there…' ? 'font-semibold text-oxblood animate-pulse' : 'italic'
             }`}
           >

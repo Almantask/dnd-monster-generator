@@ -1,4 +1,4 @@
-import { formatDice, type RollResult } from './dice.ts'
+import { formatDice, roll, type RollResult } from './dice.ts'
 
 export const PHYSICAL_SIDES = [4, 6, 8, 10, 12, 20, 100] as const
 
@@ -45,8 +45,18 @@ export function buildPhysicsGroups(plans: PlannedRoll[]): PhysicsGroup[] {
   return groups
 }
 
-export function resultFromPhysics(plan: PlannedRoll, values: number[]): RollResult {
-  const dice = values.slice(0, plan.count)
+export function resultFromPhysics(
+  plan: PlannedRoll,
+  values: number[],
+  rng: () => number = Math.random,
+): RollResult {
+  // A die the physics never read is rolled here rather than dropped, which
+  // would quietly leave the total short.
+  const missing = Math.max(0, plan.count - values.length)
+  const dice = [
+    ...values.slice(0, plan.count),
+    ...roll({ count: missing, sides: plan.sides, bonus: 0 }, rng).dice,
+  ]
   const total = dice.reduce((sum, n) => sum + n, 0) + plan.bonus
   const expression = plan.label
     ? `${plan.label}: ${formatDice(plan)}`

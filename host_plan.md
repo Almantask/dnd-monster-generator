@@ -56,7 +56,7 @@ Do not paste a credit code into `.env` or GitHub Secrets.
 | Paid by Google Cloud credits | Not paid by those credits |
 |---|---|
 | Cloud Run (this API, scale-to-zero) | OpenRouter (`OPENROUTER_API_KEY`) |
-| Cloud Build / Artifact Registry on deploy | Gemini AI Studio image quota (`GEMINI_API_KEY`, ~500/day free) |
+| Cloud Build / Artifact Registry on deploy | Gemini AI Studio image generation (`GEMINI_API_KEY`, needs AI Studio billing; free tier has 0 image quota) |
 | Egress from Cloud Run | Pollinations (free, no key) |
 
 With `--min-instances 0`, idle Cloud Run is essentially $0. Set a **$10 budget alert** on the billing account so a misconfigured paid API cannot overspend.
@@ -150,8 +150,9 @@ Repo **Settings → Secrets and variables → Actions**.
 | `GEMINI_API_KEY` | recommended | AI Studio key for portraits |
 | `VITE_API_URL` | after first Cloud Run deploy | Cloud Run URL, no trailing slash |
 | `GENERATION_PASSPHRASE` | optional | If set, the UI Settings page must use the same passphrase |
-| `POLLINATIONS_API_KEY` | no | Leave unset |
-| `HF_TOKEN` | no | Only if you want a third image backend |
+| `CLOUDFLARE_ACCOUNT_ID` | recommended | Cloudflare account id (free FLUX portraits via Workers AI) |
+| `CLOUDFLARE_API_TOKEN` | recommended | API token from the "Workers AI" template |
+| `POLLINATIONS_API_KEY` | no | Secret `sk_` key; unset uses the anonymous legacy endpoint |
 
 **Variable** (not a secret)
 
@@ -183,6 +184,6 @@ If you skip `VITE_API_URL`, the site still loads. Paste the Cloud Run URL on the
 
 ## 7. Smoke test
 
-- Settings should show OpenRouter configured, Gemini configured if you set the key, Pollinations as anonymous fallback.
-- Conjure a monster: statblock from OpenRouter, portrait from Gemini (Pollinations if Gemini fails).
+- Settings should show OpenRouter configured, Gemini configured if you set the key, Cloudflare Workers AI configured if you set both Cloudflare secrets, Pollinations as the last fallback.
+- Conjure a monster: statblock from Gemini (OpenRouter if Gemini fails), portrait from Gemini with billing, otherwise Cloudflare Workers AI, then Pollinations.
 - Data stays in **IndexedDB on that device**. Export JSON/zip if you want a backup.

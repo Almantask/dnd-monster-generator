@@ -13,8 +13,8 @@ A D&D 5e monster workshop: conjure AI-crafted creatures, hand-scribe custom stat
 
 ## ✨ Features
 
-- **🧙 AI Monster Conjuration**: Generate balanced D&D 5e statblocks from a name, description, party size, character level, and difficulty (Very Easy to Deadly). Encounter budget math calibrates CR. Primary path is Google AI Studio (Gemini 3.5 Flash / Flash Latest), with OpenRouter free models as fallback.
-- **🎨 AI Portrait Generation**: Painted parchment-style portraits via Imagen and Gemini image models, with Pollinations FLUX and Hugging Face fallbacks. Retry art from any saved entry.
+- **🧙 AI Monster Conjuration**: Generate balanced D&D 5e statblocks from a name, description, party size, character level, and difficulty (Very Easy to Deadly). Encounter budget math calibrates CR. The prompt spells out the 5e arithmetic (proficiency bonus by CR, save DCs, damage averages, HP from hit dice) so the numbers hold together. Primary path is Google AI Studio, newest Gemini Flash first (3.8 down to 3.5, whichever answers), with OpenRouter free models as fallback. On a billed key, set `GEMINI_STATBLOCK_MODEL=gemini-3.1-pro-preview` for the strongest reasoning model.
+- **🎨 AI Portrait Generation**: Painted parchment-style portraits via Gemini image models (then Imagen), with free Cloudflare Workers AI FLUX and Pollinations FLUX fallbacks. Gemini/Imagen portraits need billing enabled on the AI Studio project; free-tier keys have zero image quota and fall back to Cloudflare (10,000 free neurons/day), then Pollinations. Retry art from any saved entry.
 - **🎲 Interactive 3D Physics Dice**: Click ability scores, saving throws, skills, attack rolls (`+N to hit`), damage formulas (`2d6+3`), hit dice, recharge text, or a whole feature name. Dice fly in a Three.js / Rapier3D overlay; totals land in the bottom dice tray.
 - **📜 Scribe & Statblock Editor**: Hand-build or amend a monster with ability scores, defenses, traits, actions, reactions, legendary actions, spells, lore, tactics, drops, and a local illustration upload.
 - **📋 Paste JSON**: Drop in AI-generated or exported statblock JSON, format/validate it, attach optional art, and inscribe it. Includes a copyable generator prompt and an example Samogitian Knight.
@@ -105,8 +105,9 @@ API keys stay on Cloud Run. The browser only stores an optional API URL override
 
 ### Prerequisites
 - Node.js 22+
-- (Optional) Free API key from [Google AI Studio](https://aistudio.google.com/apikey) for Gemini statblocks and Imagen portraits
+- (Optional) API key from [Google AI Studio](https://aistudio.google.com/apikey) for Gemini statblocks (free tier works) and Gemini portraits (requires billing)
 - (Optional) Free API key from [OpenRouter](https://openrouter.ai/) as an LLM fallback
+- (Optional) Free [Cloudflare](https://dash.cloudflare.com/) account ID + Workers AI API token for free FLUX portraits (~120/day)
 
 ### Setup & Run
 
