@@ -851,6 +851,32 @@
     border-radius: 999px;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
   }
+
+  /* Capture a still parchment sheet for PNG/PDF export. */
+  .statblock-sheet.is-exporting,
+  .statblock-sheet.is-exporting .anim-rise,
+  .statblock-sheet.is-exporting .anim-fade,
+  .statblock-sheet.is-exporting .anim-pop {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  .statblock-sheet.is-exporting .statblock-portrait {
+    position: static;
+    top: auto;
+  }
+
+  .statblock-sheet.is-exporting .title-tome {
+    background-image: none;
+    color: var(--color-oxblood-dark);
+    -webkit-text-fill-color: var(--color-oxblood-dark);
+    filter: none;
+  }
+
+  .statblock-sheet.is-exporting [data-dice-marker] {
+    display: none;
+  }
 }
 
 /* ==========================================================================

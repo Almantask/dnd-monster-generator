@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, FileDown, ImagePlus, LoaderCircle, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, FileDown, FileText, ImageDown, ImagePlus, LoaderCircle, Pencil, Trash2 } from 'lucide-react'
 import { Statblock } from '@/components/statblock/Statblock.tsx'
 import { deleteMonster, getImageUrl, getMonster } from '@/lib/storage.ts'
 import { exportMonsters } from '@/lib/importExport.ts'
+import { exportStatblockPdf, exportStatblockPng } from '@/lib/exportSheet.ts'
 import { dataUrlToBlob, generateImage } from '@/lib/api.ts'
 import { saveImage, saveMonster } from '@/lib/storage.ts'
 import { ConjureProgressModal } from '@/components/common/ConjureProgressModal.tsx'
@@ -16,6 +17,8 @@ export function MonsterPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [exporting, setExporting] = useState<'png' | 'pdf' | null>(null)
+  const sheetRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     let revoked: string | null = null
@@ -36,6 +39,25 @@ export function MonsterPage() {
       if (revoked) URL.revokeObjectURL(revoked)
     }
   }, [id])
+
+  async function exportSheet(format: 'png' | 'pdf') {
+    const entry = monster
+    const node = sheetRef.current
+    if (!entry || !node) {
+      setError('The statblock is not ready to export.')
+      return
+    }
+    setExporting(format)
+    setError('')
+    try {
+      if (format === 'png') await exportStatblockPng(node, entry.name)
+      else await exportStatblockPdf(node, entry.name)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export failed')
+    } finally {
+      setExporting(null)
+    }
+  }
 
   if (error && !monster) {
     return (
@@ -77,6 +99,32 @@ export function MonsterPage() {
         >
           <FileDown className="size-3.5" aria-hidden="true" />
           Export JSON
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          disabled={exporting !== null}
+          onClick={() => void exportSheet('png')}
+        >
+          {exporting === 'png' ? (
+            <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <ImageDown className="size-3.5" aria-hidden="true" />
+          )}
+          {exporting === 'png' ? 'Exporting PNG…' : 'Export PNG'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          disabled={exporting !== null}
+          onClick={() => void exportSheet('pdf')}
+        >
+          {exporting === 'pdf' ? (
+            <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <FileText className="size-3.5" aria-hidden="true" />
+          )}
+          {exporting === 'pdf' ? 'Exporting PDF…' : 'Export PDF'}
         </button>
         <button
           type="button"
@@ -133,7 +181,7 @@ export function MonsterPage() {
           {error}
         </p>
       ) : null}
-      <Statblock monster={monster} imageUrl={imageUrl} />
+      <Statblock ref={sheetRef} monster={monster} imageUrl={imageUrl} />
     </div>
   )
 }

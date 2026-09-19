@@ -24,7 +24,11 @@ export async function monsterToWrapper(monster: Monster) {
   }
 }
 
-function downloadBlob(blob: Blob, filename: string) {
+export function monsterSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'monster'
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -39,13 +43,13 @@ export async function exportMonsters(monsters: Monster[], asZip: boolean) {
     const blob = new Blob([JSON.stringify(wrapper, null, 2)], {
       type: 'application/json',
     })
-    downloadBlob(blob, `${slug(monsters[0]!.name)}.json`)
+    downloadBlob(blob, `${monsterSlug(monsters[0]!.name)}.json`)
     return
   }
   const zip = new JSZip()
   for (const monster of monsters) {
     const wrapper = await monsterToWrapper(monster)
-    zip.file(`${slug(monster.name)}.json`, JSON.stringify(wrapper, null, 2))
+    zip.file(`${monsterSlug(monster.name)}.json`, JSON.stringify(wrapper, null, 2))
   }
   const blob = await zip.generateAsync({ type: 'blob' })
   downloadBlob(blob, 'bestiary-export.zip')
@@ -86,10 +90,6 @@ export async function saveImageFromDataUrl(dataUrl: string, mime: string): Promi
   const resolvedMime = mime || /data:(.*?);/.exec(header)?.[1] || 'image/png'
   const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
   return saveImage(new Blob([bytes], { type: resolvedMime }), resolvedMime)
-}
-
-function slug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'monster'
 }
 
 export { db, exportWrapperSchema }

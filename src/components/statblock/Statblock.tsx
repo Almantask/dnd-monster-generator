@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { Gem, ImageOff, ScrollText, Swords, type LucideIcon } from 'lucide-react'
 import { ABILITY_ABBREV } from '@shared/taxonomies.ts'
 import { abilityModifier, formatModifier, parseDiceExpressions } from '@shared/dice.ts'
@@ -71,16 +71,18 @@ function LoreBlock({ title, Icon, text }: { title: string; Icon: LucideIcon; tex
 export function Statblock({
   monster,
   imageUrl,
+  ref,
 }: {
   monster: Monster
   imageUrl?: string | null
+  ref?: Ref<HTMLElement>
 }) {
   const dice = useDice()
   const hitDice = parseDiceExpressions(monster.hit_dice)[0]
 
   return (
-    <article className="grid gap-6 lg:grid-cols-[minmax(0,300px)_1fr]">
-      <div className="anim-rise lg:sticky lg:top-20 lg:self-start">
+    <article ref={ref} className="statblock-sheet grid gap-6 lg:grid-cols-[minmax(0,300px)_1fr]">
+      <div className="statblock-portrait anim-rise lg:sticky lg:top-20 lg:self-start">
         <div className="panel overflow-hidden p-1.5">
           {imageUrl ? (
             <img
