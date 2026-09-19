@@ -53,7 +53,12 @@ export function MonsterPage() {
       if (format === 'png') await exportStatblockPng(node, entry.name)
       else await exportStatblockPdf(node, entry.name)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export failed')
+      const detail = err instanceof Error ? err.message : 'Export failed'
+      setError(
+        detail === 'Export failed'
+          ? 'Could not capture the statblock. Try exporting JSON instead.'
+          : `Could not capture the statblock (${detail}). Try exporting JSON instead.`,
+      )
     } finally {
       setExporting(null)
     }
